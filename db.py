@@ -54,6 +54,23 @@ def add_admin(user_id: int) -> bool:
         conn.close()
     return success
 
+def get_all_admins() -> list:
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute('SELECT user_id FROM admins')
+    admins = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    return admins
+
+def remove_admin(user_id: int) -> bool:
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM admins WHERE user_id = ?', (user_id,))
+    deleted = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return deleted
+
 def get_all_hashtags() -> list:
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()

@@ -58,12 +58,16 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         help_text += "👑 **دستورات مدیریت کل (Owner):**\n"
         help_text += "🔹 `/start` - بررسی وضعیت ربات\n"
         help_text += "🔹 `/add_admin <user_id>` - افزودن ادمین جدید\n"
+        help_text += "🔹 `/remove_admin <user_id>` - حذف ادمین\n"
+        help_text += "🔹 `/list_admins` - مشاهده لیست ادمین‌ها\n"
         help_text += "🔹 `/add_tag <hashtag>` - افزودن هشتگ جدید به لیست\n"
         help_text += "🔹 `/remove_tag <hashtag>` - حذف هشتگ از لیست\n"
         help_text += "🔹 `/report` - دریافت گزارش فعالیت ادمین‌ها\n\n"
         
     if is_owner or is_admin:
-        help_text += "👥 **راهنمای ارسال پست (Admins):**\n"
+        help_text += "👥 **راهنمای استفاده (Admins):**\n"
+        help_text += "🔹 `/list_tags` - مشاهده لیست هشتگ‌های فعلی\n"
+        help_text += "\n🎥 **نحوه ارسال پست:**\n"
         help_text += "۱. یک فایل **ویدیو** یا **گیف (Animation)** برای ربات ارسال کنید.\n"
         if KEYBOARD_MODE == "INLINE":
             help_text += "۲. ربات در زیر همان پیام دکمه‌های شیشه‌ای شامل هشتگ‌های مجاز به شما نمایش می‌دهد.\n"
@@ -122,6 +126,42 @@ async def remove_tag_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.message.reply_text(f"✅ هشتگ {tag} حذف شد.")
     else:
         await update.message.reply_text(f"⚠️ هشتگ {tag} پیدا نشد.")
+
+async def remove_admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args:
+        await update.message.reply_text("نحوه استفاده: /remove_admin <آیدی_عددی>")
+        return
+    
+    try:
+        del_admin_id = int(context.args[0])
+        if db.remove_admin(del_admin_id):
+            await update.message.reply_text(f"✅ ادمین {del_admin_id} با موفقیت حذف شد.")
+        else:
+            await update.message.reply_text(f"⚠️ ادمین {del_admin_id} پیدا نشد.")
+    except ValueError:
+        await update.message.reply_text("❌ آیدی باید عدد باشد.")
+
+async def list_admins_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    admins = db.get_all_admins()
+    if not admins:
+        await update.message.reply_text("هیچ ادمینی (به جز شما) ثبت نشده است.")
+        return
+        
+    msg = "👥 **لیست ادمین‌های ربات:**\n\n"
+    for admin in admins:
+        msg += f"▪️ `{admin}`\n"
+    await update.message.reply_text(msg, parse_mode='Markdown')
+
+async def list_tags_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    tags = db.get_all_hashtags()
+    if not tags:
+        await update.message.reply_text("هیچ هشتگی ثبت نشده است.")
+        return
+    
+    msg = "📝 **لیست هشتگ‌های فعلی:**\n\n"
+    for tag in tags:
+        msg += f"▪️ {tag}\n"
+    await update.message.reply_text(msg, parse_mode='Markdown')
 
 async def report_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     report_text = db.get_report()
@@ -299,12 +339,15 @@ def main():
     # Owner Commands
     app.add_handler(CommandHandler("start", start_command, filters=owner_filter))
     app.add_handler(CommandHandler("add_admin", add_admin_command, filters=owner_filter))
+    app.add_handler(CommandHandler("remove_admin", remove_admin_command, filters=owner_filter))
+    app.add_handler(CommandHandler("list_admins", list_admins_command, filters=owner_filter))
     app.add_handler(CommandHandler("add_tag", add_tag_command, filters=owner_filter))
     app.add_handler(CommandHandler("remove_tag", remove_tag_command, filters=owner_filter))
     app.add_handler(CommandHandler("report", report_command, filters=owner_filter))
     
-    # Public Commands
+    # Public & Admin Commands
     app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("list_tags", list_tags_command, filters=admin_filter))
     
     # Media Handlers
     # Filter for animation or video without audio (or we strip audio anyway so video is fine)
