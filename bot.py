@@ -44,6 +44,35 @@ owner_filter = OwnerFilter()
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Hello Owner! The bot is running.")
 
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id if update.message.from_user else None
+    
+    is_owner = (user_id == OWNER_ID)
+    is_admin = db.is_admin(user_id)
+    
+    help_text = "🤖 **راهنمای ربات واترمارک Trend GIF**\n\n"
+    
+    if is_owner:
+        help_text += "👑 **دستورات مدیریت کل (Owner):**\n"
+        help_text += "🔹 `/start` - بررسی وضعیت ربات\n"
+        help_text += "🔹 `/add_admin <user_id>` - افزودن ادمین جدید\n"
+        help_text += "🔹 `/add_tag <hashtag>` - افزودن هشتگ جدید به لیست\n"
+        help_text += "🔹 `/remove_tag <hashtag>` - حذف هشتگ از لیست\n"
+        help_text += "🔹 `/report` - دریافت گزارش فعالیت ادمین‌ها\n\n"
+        
+    if is_owner or is_admin:
+        help_text += "👥 **راهنمای ارسال پست (Admins):**\n"
+        help_text += "۱. یک فایل **ویدیو** یا **گیف (Animation)** برای ربات ارسال کنید.\n"
+        help_text += "۲. ربات یک کیبورد شامل هشتگ‌های مجاز به شما نمایش می‌دهد.\n"
+        help_text += "۳. ربات از شما می‌خواهد روی پیامش **ریپلای (Reply)** کنید. کافیست روی دکمه هشتگ در کیبورد کلیک کنید تا ریپلای انجام شود.\n"
+        help_text += "۴. ربات به طور خودکار واترمارک کانال را روی ویدیو قرار داده و آن را در کانال منتشر می‌کند.\n\n"
+        help_text += "❌ برای لغو عملیات در مرحله انتخاب هشتگ، روی دکمه `Cancel` کلیک کنید."
+    else:
+        help_text += "⛔️ **عدم دسترسی**\n"
+        help_text += "شما جزء ادمین‌های مجاز این ربات نیستید. این ربات یک ابزار خصوصی برای واترمارک ویدیوها است و استفاده عمومی ندارد."
+        
+    await update.message.reply_text(help_text, parse_mode='Markdown')
+
 async def add_admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
         await update.message.reply_text("Usage: /add_admin <user_id>")
@@ -221,6 +250,9 @@ def main():
     app.add_handler(CommandHandler("add_tag", add_tag_command, filters=owner_filter))
     app.add_handler(CommandHandler("remove_tag", remove_tag_command, filters=owner_filter))
     app.add_handler(CommandHandler("report", report_command, filters=owner_filter))
+    
+    # Public Commands
+    app.add_handler(CommandHandler("help", help_command))
     
     # Media Handlers
     # Filter for animation or video without audio (or we strip audio anyway so video is fine)
