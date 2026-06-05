@@ -12,10 +12,9 @@ from telegram.ext import (
 import db
 import video
 
-# Hardcoded constants
-OWNER_ID = 276868456
-# CHANNEL_USERNAME = "@trend_gif"
-CHANNEL_USERNAME = "@bestgifsintheworld"
+# Configurations (loaded from env with defaults)
+OWNER_ID = int(os.environ.get("OWNER_ID", 276868456))
+CHANNEL_USERNAME = os.environ.get("CHANNEL_USERNAME", "@bestgifsintheworld")
 
 
 # Enable logging

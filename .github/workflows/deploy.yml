@@ -36,6 +36,8 @@ jobs:
             echo "BOT_TOKEN=${{ secrets.BOT_TOKEN }}" > .env
             echo "IP_ADDRESS=${{ secrets.SERVER_IP }}" >> .env
             echo "PORT=8443" >> .env
+            echo "OWNER_ID=${{ secrets.OWNER_ID }}" >> .env
+            echo "CHANNEL_USERNAME=${{ secrets.CHANNEL_USERNAME }}" >> .env
             
             # Rebuild and restart the container
             docker compose down
