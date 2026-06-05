@@ -241,6 +241,29 @@ async def process_video_task(file_id, hashtag, context, update_text_func, user_i
         if os.path.exists(output_path):
             os.remove(output_path)
 
+def get_inline_keyboard(tags, selected_tags):
+    keyboard = []
+    row = []
+    for tag in tags:
+        display_text = f"✅ {tag}" if tag in selected_tags else tag
+        row.append(InlineKeyboardButton(display_text, callback_data=f"tag|{tag}"))
+        if len(row) == 2:
+            keyboard.append(row)
+            row = []
+    if row:
+        keyboard.append(row)
+        
+    keyboard.append([
+        InlineKeyboardButton("❌ لغو", callback_data="action|Cancel"),
+        InlineKeyboardButton("✅ تأیید و ارسال", callback_data="action|Done")
+    ])
+    return InlineKeyboardMarkup(keyboard)
+
+def get_reply_keyboard(tags):
+    keyboard = [[KeyboardButton(tag)] for tag in tags]
+    keyboard.append([KeyboardButton("❌ لغو"), KeyboardButton("✅ تأیید نهایی")])
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, selective=True)
+
 # Media Handling
 async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Extract file_id to store in user_data
@@ -258,29 +281,19 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # Save to user_data (specific to the user handling this interaction)
-    context.user_data['pending_file_id'] = file_id
+    context.user_data['pending_media'] = {
+        'file_id': file_id,
+        'tags': set()
+    }
 
     tags = db.get_all_hashtags()
     
     if KEYBOARD_MODE == "INLINE":
-        keyboard = []
-        row = []
-        for tag in tags:
-            row.append(InlineKeyboardButton(tag, callback_data=f"tag|{tag}"))
-            if len(row) == 2:
-                keyboard.append(row)
-                row = []
-        if row:
-            keyboard.append(row)
-            
-        keyboard.append([InlineKeyboardButton("❌ لغو", callback_data="tag|Cancel")])
-        markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text("👇 یک هشتگ برای این ویدیو انتخاب کنید:", reply_markup=markup)
+        markup = get_inline_keyboard(tags, set())
+        await update.message.reply_text("👇 هشتگ‌های مرتبط با این ویدیو را انتخاب کنید:", reply_markup=markup)
     else:
-        keyboard = [[KeyboardButton(tag)] for tag in tags]
-        keyboard.append([KeyboardButton("لغو")])
-        markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, selective=True)
-        await update.message.reply_text("👇 یک هشتگ از کیبورد انتخاب کنید یا تایپ کنید:", reply_markup=markup)
+        markup = get_reply_keyboard(tags)
+        await update.message.reply_text("👇 هشتگ‌های مرتبط را انتخاب کرده و سپس «تأیید نهایی» را بزنید:", reply_markup=markup)
 
 async def handle_inline_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -291,69 +304,129 @@ async def handle_inline_button(update: Update, context: ContextTypes.DEFAULT_TYP
         await query.answer("شما دسترسی ندارید.", show_alert=True)
         return
         
-    await query.answer()
-    
     data = query.data
-    if not data.startswith("tag|"):
-        return
-        
-    text = data.split("|", 1)[1]
-    
-    if text == "Cancel" or text == "لغو":
-        await query.edit_message_text("🚫 عملیات لغو شد.")
-        if 'pending_file_id' in context.user_data:
-            del context.user_data['pending_file_id']
-        return
-        
-    if not db.valid_hashtag(text):
-        await query.edit_message_text("❌ هشتگ نامعتبر است.")
+    if not (data.startswith("tag|") or data.startswith("action|")):
         return
 
-    file_id = context.user_data.get('pending_file_id')
-    
-    if not file_id:
-        await query.edit_message_text("⚠️ فایل پیدا نشد. دوباره بفرستید.")
+    pending_media = context.user_data.get('pending_media')
+    if not pending_media:
+        await query.answer("⚠️ نشست منقضی شده یا فایل پیدا نشد.", show_alert=True)
+        try:
+            await query.edit_message_text("⚠️ نشست منقضی شده یا فایل پیدا نشد.")
+        except Exception:
+            pass
         return
 
-    del context.user_data['pending_file_id']
+    file_id = pending_media['file_id']
+    selected_tags = pending_media['tags']
 
-    async def update_text(msg):
-        await query.edit_message_text(msg)
+    if data.startswith("action|"):
+        action = data.split("|", 1)[1]
+        if action == "Cancel" or action == "لغو":
+            await query.answer()
+            try:
+                await query.edit_message_text("🚫 عملیات لغو شد.")
+            except Exception:
+                pass
+            del context.user_data['pending_media']
+            return
+        elif action == "Done":
+            if not selected_tags:
+                await query.answer("لطفاً حداقل یک هشتگ انتخاب کنید!", show_alert=True)
+                return
+            
+            await query.answer()
+            del context.user_data['pending_media']
+            final_hashtags = " ".join(selected_tags)
+            
+            async def update_text(msg):
+                try:
+                    await query.edit_message_text(msg)
+                except Exception:
+                    pass
+            await process_video_task(file_id, final_hashtags, context, update_text, user_id)
+            return
+
+    if data.startswith("tag|"):
+        tag = data.split("|", 1)[1]
         
-    await process_video_task(file_id, text, context, update_text, user_id)
+        if tag == "Cancel" or tag == "لغو" or tag == "❌ لغو":
+            await query.answer()
+            try:
+                await query.edit_message_text("🚫 عملیات لغو شد.")
+            except Exception:
+                pass
+            del context.user_data['pending_media']
+            return
+            
+        if not db.valid_hashtag(tag):
+            await query.answer("❌ هشتگ نامعتبر است.", show_alert=True)
+            return
+            
+        if tag in selected_tags:
+            selected_tags.remove(tag)
+        else:
+            selected_tags.add(tag)
+            
+        await query.answer()
+        
+        tags = db.get_all_hashtags()
+        markup = get_inline_keyboard(tags, selected_tags)
+        try:
+            await query.edit_message_reply_markup(reply_markup=markup)
+        except Exception:
+            pass
 
 async def handle_text_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if KEYBOARD_MODE == "INLINE":
         return
         
-    if 'pending_file_id' not in context.user_data:
+    pending_media = context.user_data.get('pending_media')
+    if not pending_media:
         return
         
     text = update.message.text
     
-    if text == "Cancel" or text == "لغو":
+    if text == "Cancel" or text == "لغو" or text == "❌ لغو":
         await update.message.reply_text("🚫 عملیات لغو شد.", reply_markup=ReplyKeyboardRemove())
-        del context.user_data['pending_file_id']
+        del context.user_data['pending_media']
         return
         
-    if not db.valid_hashtag(text):
-        await update.message.reply_text("❌ هشتگ نامعتبر است.", reply_markup=ReplyKeyboardRemove())
-        return
-
-    file_id = context.user_data['pending_file_id']
-    del context.user_data['pending_file_id']
-    
-    status_msg = await update.message.reply_text("⏳ در حال دانلود و پردازش ویدیو...", reply_markup=ReplyKeyboardRemove())
-    
-    async def update_text(msg):
-        if msg == "⏳ در حال دانلود و پردازش ویدیو...":
+    if text == "✅ تأیید نهایی":
+        selected_tags = pending_media['tags']
+        if not selected_tags:
+            await update.message.reply_text("لطفاً حداقل یک هشتگ انتخاب کنید!")
             return
-        try:
-            await status_msg.edit_text(msg)
-        except Exception:
-            await update.message.reply_text(msg)
             
-    await process_video_task(file_id, text, context, update_text, update.message.from_user.id)
+        file_id = pending_media['file_id']
+        del context.user_data['pending_media']
+        final_hashtags = " ".join(selected_tags)
+        
+        status_msg = await update.message.reply_text("⏳ در حال دانلود و پردازش ویدیو...", reply_markup=ReplyKeyboardRemove())
+        
+        async def update_text(msg):
+            if msg == "⏳ در حال دانلود و پردازش ویدیو...":
+                return
+            try:
+                await status_msg.edit_text(msg)
+            except Exception:
+                await update.message.reply_text(msg)
+                
+        await process_video_task(file_id, final_hashtags, context, update_text, update.message.from_user.id)
+        return
+        
+    if db.valid_hashtag(text):
+        if text in pending_media['tags']:
+            pending_media['tags'].remove(text)
+            action_text = "حذف شد"
+        else:
+            pending_media['tags'].add(text)
+            action_text = "اضافه شد"
+            
+        current_tags = " ".join(pending_media['tags']) if pending_media['tags'] else "(هیچ)"
+        await update.message.reply_text(f"✔️ هشتگ {text} {action_text}.\n\nهشتگ‌های فعلی: {current_tags}\n\nهشتگ دیگری انتخاب کنید یا «✅ تأیید نهایی» را بزنید.")
+    else:
+        await update.message.reply_text("❌ هشتگ نامعتبر است.")
 
 
 def main():
@@ -395,7 +468,7 @@ def main():
     app.add_handler(MessageHandler(media_filter, handle_media))
     
     # Handle the inline button callbacks
-    app.add_handler(CallbackQueryHandler(handle_inline_button, pattern="^tag\\|"))
+    app.add_handler(CallbackQueryHandler(handle_inline_button, pattern="^(tag|action)\\|"))
     
     # Handle the reply keyboard text input
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & admin_filter, handle_text_reply))
