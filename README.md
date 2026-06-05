@@ -1,6 +1,6 @@
 <div align="center">
   <h1>🎬 Trend GIF Telegram Bot</h1>
-  <p><strong>A fully automated, asynchronous Telegram bot with FFmpeg integration and CI/CD pipelines.</strong></p>
+  <p><strong>A fully automated, asynchronous Telegram bot with FFmpeg integration, community submissions, and CI/CD pipelines.</strong></p>
   
   [![Python](https://img.shields.io/badge/Python-3.11%2B-blue?logo=python&logoColor=white)](https://python.org)
   [![Docker](https://img.shields.io/badge/Docker-Containerized-2496ED?logo=docker&logoColor=white)](https://docker.com)
@@ -17,17 +17,22 @@
 ## 📌 Overview
 An enterprise-grade, asynchronous Telegram Bot designed to streamline media publishing for Telegram channels. It processes video and animation (GIF) files, applies customized text watermarks dynamically using **FFmpeg**, and publishes them to a target channel—all while running securely in an isolated Docker container via **HTTPS Webhooks**.
 
+The bot also features a **Community Submission System** that allows public users to submit GIFs for channel publication, with a full admin moderation workflow and tiered anti-spam protection.
+
 This project serves as a showcase of modern Python backend development, DevOps practices (Docker + CI/CD), and robust API integration.
 
 ## 🚀 Key Features
 
 *   **Asynchronous Webhook Architecture**: Transitioned from polling to a secure, high-performance HTTPS webhook model for production readiness.
 *   **Media Processing Engine**: Seamless integration with FFmpeg via `asyncio.subprocess` to manipulate video streams, apply styling (shadows, fonts), and strip audio tracks dynamically.
+*   **Community GIF Submissions**: Public users can submit GIFs with hashtags and credit names. Submissions go through a moderated review process before publication.
+*   **Admin Moderation Workflow**: Admins review submissions in a dedicated Telegram group with inline buttons—claim, edit hashtags, approve, or reject—all without leaving the group chat.
+*   **Tiered Anti-Spam Protection**: Progressive rate limiting (10 free → 3/10min → 1/30min → daily lock) prevents abuse while allowing genuine contributions.
 *   **DevOps & CI/CD Pipeline**: Fully automated deployments to a remote server using GitHub Actions, SCP, and SSH. 
 *   **Dockerized Environment**: The bot and all its complex system dependencies (like FFmpeg) are encapsulated in a lightweight container, ensuring complete environment parity.
 *   **Persistent Logging**: Integrates Python's `RotatingFileHandler` mapped securely to Docker volumes, enabling historical debugging without infinite disk consumption.
-*   **State Management without FSM**: Clever use of Telegram's `ForceReply` and `context.chat_data` mapping to track active video processing sessions seamlessly.
-*   **Strict Access Control**: Granular permission layers ensuring only the `OWNER_ID` or registered `admins` in the local SQLite database can trigger commands.
+*   **State Management without FSM**: Clever use of Telegram's `ForceReply` and `context.user_data` mapping to track active video processing sessions seamlessly.
+*   **Strict Access Control**: Granular permission layers ensuring only the `OWNER_ID` or registered `admins` in the local SQLite database can trigger admin commands.
 
 ## 🛠️ Tech Stack & Architecture
 
@@ -41,25 +46,36 @@ This project serves as a showcase of modern Python backend development, DevOps p
 ### System Workflow
 ```mermaid
 graph TD
-    A[Admin User] -->|Sends Animation/Video| B[Telegram Bot Webhook]
-    B -->|Checks DB Permissions| C{Is Admin?}
-    C -->|No| D[Reject Request]
-    C -->|Yes| E[Prompt for Hashtag]
-    A -->|Replies with Tag| B
-    B -->|Maps State via chat_data| B
-    B -->|Downloads File| F[Docker Volatile Storage]
-    F -->|Spawn async subprocess| G[FFmpeg Engine /video.py]
-    G -->|Watermarks & Mutes| H[Processed MP4]
-    H -->|Send to Channel| I[Target Telegram Channel]
-    B -->|Log Activity to DB| B
-    B -->|Garbage Collect Files| F
+    subgraph Admin Flow
+        A[Admin User] -->|Sends Animation/Video| B[Telegram Bot Webhook]
+        B -->|Checks DB Permissions| C{Is Admin?}
+        C -->|Yes| E[Prompt for Hashtag]
+        E -->|Select Tags + Confirm| F[FFmpeg Watermark]
+        F --> G[Publish to Channel]
+    end
+
+    subgraph Community Submission Flow
+        U[Public User] -->|/start| B
+        B -->|Show Submit Button| U
+        U -->|Sends GIF + Tags + Name| B
+        B -->|Rate Limit Check| RL{Allowed?}
+        RL -->|No| WAIT[Show Wait Message]
+        RL -->|Yes| RG[Send to Review Group]
+        RG -->|Admin Claims| CLAIM[🔒 Locked to Admin]
+        CLAIM -->|Edit Tags / Approve / Reject| REVIEW{Decision}
+        REVIEW -->|✅ Approve| F2[FFmpeg Watermark]
+        F2 --> G2[Publish to Channel + Notify User]
+        REVIEW -->|❌ Reject| NOTIFY[Notify User: Rejected]
+    end
 ```
 
 ## 📁 Repository Structure
 
 *   `bot.py`: The main asynchronous webhook application. Handles request routing, state management, and API calls.
+*   `community.py`: Community GIF submission flow — user-facing interaction from submit button through hashtag selection and name confirmation.
+*   `review.py`: Admin review flow — handles claim/edit/approve/reject entirely within the review group using inline keyboards.
 *   `video.py`: The FFmpeg media processing pipeline, utilizing `asyncio.create_subprocess_exec`.
-*   `db.py`: The Data Access Object (DAO) managing SQLite connections, admin whitelists, and logging.
+*   `db.py`: The Data Access Object (DAO) managing SQLite connections, admin whitelists, submissions, rate limits, and logging.
 *   `Dockerfile` & `docker-compose.yml`: Container orchestration definitions.
 *   `.github/workflows/deploy.yml`: The CI/CD pipeline for automated deployments.
 
@@ -73,6 +89,7 @@ The bot utilizes environment variables to ensure secrets are never leaked into v
 | `IP_ADDRESS` | Public IP of the host server | `45.91.248.25` |
 | `PORT` | Webhook listening port | `8443` |
 | `KEYBOARD_MODE` | UI Type for hashtags (`INLINE` or `REPLY`) | `INLINE` |
+| `REVIEW_GROUP_ID` | Numeric ID of the admin review Telegram group | `-1001234567890` |
 
 *Note: For the webhook to function securely, `public.pem` and `private.key` SSL certificates must exist in the root directory.*
 
@@ -102,3 +119,9 @@ docker compose up -d --build
 *   `/remove_tag <hashtag>`: Deletes an existing tag.
 *   `/list_tags`: Displays all available hashtags (available to both Owner and Admins).
 *   `/report`: Generates monthly activity statistics per administrator.
+*   `/pending`: Shows count of GIFs awaiting admin review.
+
+## 📤 Community Submission (Public Users)
+*   `/start`: Welcome message with "📤 Submit GIF" button.
+*   `/help`: Usage guide for submitting GIFs.
+*   `/cancel`: Cancel an active submission flow.

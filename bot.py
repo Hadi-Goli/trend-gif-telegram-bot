@@ -14,11 +14,14 @@ from telegram.ext import (
 
 import db
 import video
+import community
+import review
 
 # Configurations (loaded from env with defaults)
 OWNER_ID = int(os.environ.get("OWNER_ID", 276868456))
 CHANNEL_USERNAME = os.environ.get("CHANNEL_USERNAME", "@bestgifsintheworld")
 KEYBOARD_MODE = os.environ.get("KEYBOARD_MODE", "INLINE").upper() # 'INLINE' or 'REPLY'
+REVIEW_GROUP_ID = int(os.environ.get("REVIEW_GROUP_ID", 0))
 
 
 # Ensure logs directory exists
@@ -52,8 +55,25 @@ admin_filter = AdminFilter()
 owner_filter = OwnerFilter()
 
 
+# ─── Public & Admin Commands ─────────────────────────────────────
+
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("سلام ادمین! ربات با موفقیت در حال اجراست. 🚀")
+    user_id = update.message.from_user.id
+    if user_id == OWNER_ID or db.is_admin(user_id):
+        await update.message.reply_text("سلام ادمین! ربات با موفقیت در حال اجراست. 🚀")
+    else:
+        # Public user — show submit button
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📤 ارسال گیف", callback_data="usub_start")]
+        ])
+        await update.message.reply_text(
+            "سلام! 👋\n\n"
+            "به ربات <b>Trend GIF</b> خوش آمدید.\n"
+            "شما می‌توانید گیف‌های خود را برای انتشار در کانال ارسال کنید.\n\n"
+            "برای شروع، روی دکمه زیر کلیک کنید:",
+            reply_markup=keyboard,
+            parse_mode='HTML',
+        )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id if update.message.from_user else None
@@ -76,6 +96,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         help_text += "🔹 `/list_tags` - مشاهده لیست هشتگ‌های فعلی\n"
         help_text += "🔹 `/list_admins` - مشاهده لیست ادمین‌ها\n"
         help_text += "🔹 `/report` - دریافت گزارش فعالیت\n"
+        help_text += "🔹 `/pending` - تعداد گیف‌های در انتظار بررسی\n"
         help_text += "\n🎥 **نحوه ارسال پست:**\n"
         help_text += "۱. یک فایل **ویدیو** یا **گیف (Animation)** برای ربات ارسال کنید.\n"
         if KEYBOARD_MODE == "INLINE":
@@ -88,11 +109,25 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             help_text += "۳. هشتگ مورد نظر را از کیبورد انتخاب کنید یا دستی تایپ کنید.\n"
             help_text += "۴. ربات به طور خودکار واترمارک کانال را روی ویدیو قرار داده و آن را در کانال منتشر می‌کند.\n\n"
             help_text += "❌ برای لغو عملیات روی دکمه Cancel در کیبورد کلیک کنید یا آن را تایپ کنید."
+
+        help_text += "\n\n📬 **بررسی گیف‌های ارسالی کاربران:**\n"
+        help_text += "گیف‌های ارسالی کاربران در گروه بررسی ظاهر می‌شوند.\n"
+        help_text += "🔹 ابتدا «🔒 رسیدگی می‌کنم» را بزنید تا قفل شود.\n"
+        help_text += "🔹 سپس می‌توانید هشتگ‌ها را ویرایش، تأیید یا رد کنید.\n"
     else:
-        help_text += "⛔️ **عدم دسترسی**\n"
-        help_text += "شما جزء ادمین‌های مجاز این ربات نیستید. این ربات یک ابزار خصوصی برای واترمارک ویدیوها است و استفاده عمومی ندارد."
+        help_text += "📤 **ارسال گیف برای کانال:**\n"
+        help_text += "شما می‌توانید گیف‌های خود را برای انتشار در کانال ارسال کنید.\n"
+        help_text += "۱. روی دکمه «📤 ارسال گیف» کلیک کنید.\n"
+        help_text += "۲. گیف یا ویدیوی خود را ارسال کنید.\n"
+        help_text += "۳. هشتگ‌های مرتبط را انتخاب کنید.\n"
+        help_text += "۴. نام خود را تأیید یا تغییر دهید.\n"
+        help_text += "۵. گیف شما پس از بررسی ادمین‌ها در کانال منتشر خواهد شد.\n\n"
+        help_text += "❌ برای لغو: `/cancel`"
         
     await update.message.reply_text(help_text, parse_mode='Markdown')
+
+
+# ─── Owner-only Commands ─────────────────────────────────────────
 
 async def add_admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
@@ -202,6 +237,8 @@ async def report_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     await update.message.reply_text("\n".join(report_lines), parse_mode='HTML')
 
+
+# ─── Admin Media Processing ──────────────────────────────────────
 
 async def process_video_task(file_id, hashtag, context, update_text_func, user_id):
     await update_text_func("⏳ در حال دانلود و پردازش ویدیو...")
@@ -429,10 +466,11 @@ async def handle_text_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ هشتگ نامعتبر است.")
 
 
+# ─── Main ─────────────────────────────────────────────────────────
+
 def main():
     # Initialize Database
     db.init_db()
-    # Add OWNER to admins implicitly or ensure the filter handles it. Filter already does.
     
     TOKEN = os.environ.get("BOT_TOKEN")
     if not TOKEN:
@@ -446,32 +484,55 @@ def main():
         
     PORT = int(os.environ.get("PORT", 8443))
     
+    if not REVIEW_GROUP_ID:
+        logger.warning("REVIEW_GROUP_ID not set. Community submissions will not work.")
+    
     # job_queue(None) fixes TypeError: cannot create weak reference to 'Application' object in Python 3.13+ with PTB v20.x
     app = ApplicationBuilder().token(TOKEN).job_queue(None).build()
     
-    # Owner Commands
-    app.add_handler(CommandHandler("start", start_command, filters=owner_filter))
+    # ── Owner Commands ──
     app.add_handler(CommandHandler("add_admin", add_admin_command, filters=owner_filter))
     app.add_handler(CommandHandler("remove_admin", remove_admin_command, filters=owner_filter))
     app.add_handler(CommandHandler("add_tag", add_tag_command, filters=owner_filter))
     app.add_handler(CommandHandler("remove_tag", remove_tag_command, filters=owner_filter))
     
-    # Public & Admin Commands
-    app.add_handler(CommandHandler("help", help_command))
+    # ── Admin Commands ──
     app.add_handler(CommandHandler("list_tags", list_tags_command, filters=admin_filter))
     app.add_handler(CommandHandler("list_admins", list_admins_command, filters=admin_filter))
     app.add_handler(CommandHandler("report", report_command, filters=admin_filter))
+    app.add_handler(CommandHandler("pending", review.pending_command, filters=admin_filter))
     
-    # Media Handlers
-    # Filter for animation or video without audio (or we strip audio anyway so video is fine)
+    # ── Public Commands (available to everyone) ──
+    app.add_handler(CommandHandler("start", start_command))
+    app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("cancel", community.handle_cancel_command))
+    
+    # ── Admin Media Handlers ──
     media_filter = admin_filter & (filters.ANIMATION | filters.VIDEO)
     app.add_handler(MessageHandler(media_filter, handle_media))
     
-    # Handle the inline button callbacks
-    app.add_handler(CallbackQueryHandler(handle_inline_button, pattern="^(tag|action)\\|"))
+    # Admin inline button callbacks (tag|* and action|*)
+    app.add_handler(CallbackQueryHandler(handle_inline_button, pattern=r"^(tag|action)\|"))
     
-    # Handle the reply keyboard text input
+    # Admin text reply (REPLY keyboard mode)
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & admin_filter, handle_text_reply))
+    
+    # ── Community Submission Handlers ──
+    # Callback queries from users (usub_*)
+    app.add_handler(CallbackQueryHandler(community.handle_submission_callback, pattern=r"^usub_"))
+    
+    # GIF/video from non-admin users in private chat
+    community_media_filter = ~admin_filter & filters.ChatType.PRIVATE & (filters.ANIMATION | filters.VIDEO)
+    app.add_handler(MessageHandler(community_media_filter, community.handle_user_gif))
+    
+    # Text from non-admin users in private chat (custom name input)
+    app.add_handler(MessageHandler(
+        filters.TEXT & ~filters.COMMAND & ~admin_filter & filters.ChatType.PRIVATE,
+        community.handle_user_text,
+    ))
+    
+    # ── Review Handlers (admin actions in review group) ──
+    app.add_handler(CallbackQueryHandler(review.handle_review_callback, pattern=r"^rev_"))
     
     logger.info(f"Starting bot webhook on port {PORT}...")
     app.run_webhook(
