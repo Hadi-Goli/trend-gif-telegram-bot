@@ -116,7 +116,7 @@ def log_post(admin_id: int):
     conn.commit()
     conn.close()
 
-def get_report() -> str:
+def get_report_data() -> list:
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     
@@ -133,12 +133,4 @@ def get_report() -> str:
     
     results = cursor.fetchall()
     conn.close()
-    
-    if not results:
-        return "در این ماه پستی ارسال نشده است."
-        
-    report_lines = ["📊 گزارش فعالیت در این ماه:"]
-    for admin_id, count in results:
-        report_lines.append(f"👤 ادمین {admin_id}: {count} پست")
-        
-    return "\n".join(report_lines)
+    return results

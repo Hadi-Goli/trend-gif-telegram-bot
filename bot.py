@@ -67,14 +67,14 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         help_text += "🔹 `/start` - بررسی وضعیت ربات\n"
         help_text += "🔹 `/add_admin <user_id>` - افزودن ادمین جدید\n"
         help_text += "🔹 `/remove_admin <user_id>` - حذف ادمین\n"
-        help_text += "🔹 `/list_admins` - مشاهده لیست ادمین‌ها\n"
         help_text += "🔹 `/add_tag <hashtag>` - افزودن هشتگ جدید به لیست\n"
-        help_text += "🔹 `/remove_tag <hashtag>` - حذف هشتگ از لیست\n"
-        help_text += "🔹 `/report` - دریافت گزارش فعالیت ادمین‌ها\n\n"
+        help_text += "🔹 `/remove_tag <hashtag>` - حذف هشتگ از لیست\n\n"
         
     if is_owner or is_admin:
         help_text += "👥 **راهنمای استفاده (Admins):**\n"
         help_text += "🔹 `/list_tags` - مشاهده لیست هشتگ‌های فعلی\n"
+        help_text += "🔹 `/list_admins` - مشاهده لیست ادمین‌ها\n"
+        help_text += "🔹 `/report` - دریافت گزارش فعالیت\n"
         help_text += "\n🎥 **نحوه ارسال پست:**\n"
         help_text += "۱. یک فایل **ویدیو** یا **گیف (Animation)** برای ربات ارسال کنید.\n"
         if KEYBOARD_MODE == "INLINE":
@@ -157,7 +157,15 @@ async def list_admins_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         
     msg = "👥 **لیست ادمین‌های ربات:**\n\n"
     for admin in admins:
-        msg += f"▪️ `{admin}`\n"
+        try:
+            chat = await context.bot.get_chat(admin)
+            name = chat.first_name or "بدون نام"
+            if chat.username:
+                name += f" (@{chat.username})"
+        except Exception:
+            name = "ناشناس"
+            
+        msg += f"▪️ {name} (`{admin}`)\n"
     await update.message.reply_text(msg, parse_mode='Markdown')
 
 async def list_tags_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -172,8 +180,24 @@ async def list_tags_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(msg, parse_mode='Markdown')
 
 async def report_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    report_text = db.get_report()
-    await update.message.reply_text(report_text)
+    results = db.get_report_data()
+    if not results:
+        await update.message.reply_text("در این ماه پستی ارسال نشده است.")
+        return
+        
+    report_lines = ["📊 **گزارش فعالیت در این ماه:**\n"]
+    for admin_id, count in results:
+        try:
+            chat = await context.bot.get_chat(admin_id)
+            name = chat.first_name or "بدون نام"
+            if chat.username:
+                name += f" (@{chat.username})"
+        except Exception:
+            name = "ناشناس"
+            
+        report_lines.append(f"👤 {name} (`{admin_id}`): {count} پست")
+        
+    await update.message.reply_text("\n".join(report_lines), parse_mode='Markdown')
 
 
 async def process_video_task(file_id, hashtag, context, update_text_func, user_id):
@@ -353,14 +377,14 @@ def main():
     app.add_handler(CommandHandler("start", start_command, filters=owner_filter))
     app.add_handler(CommandHandler("add_admin", add_admin_command, filters=owner_filter))
     app.add_handler(CommandHandler("remove_admin", remove_admin_command, filters=owner_filter))
-    app.add_handler(CommandHandler("list_admins", list_admins_command, filters=owner_filter))
     app.add_handler(CommandHandler("add_tag", add_tag_command, filters=owner_filter))
     app.add_handler(CommandHandler("remove_tag", remove_tag_command, filters=owner_filter))
-    app.add_handler(CommandHandler("report", report_command, filters=owner_filter))
     
     # Public & Admin Commands
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("list_tags", list_tags_command, filters=admin_filter))
+    app.add_handler(CommandHandler("list_admins", list_admins_command, filters=admin_filter))
+    app.add_handler(CommandHandler("report", report_command, filters=admin_filter))
     
     # Media Handlers
     # Filter for animation or video without audio (or we strip audio anyway so video is fine)
