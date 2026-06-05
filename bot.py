@@ -1,10 +1,11 @@
 import logging
 import os
-from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, ForceReply
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
     MessageHandler,
+    CallbackQueryHandler,
     ContextTypes,
     filters,
 )
@@ -63,10 +64,10 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_owner or is_admin:
         help_text += "👥 **راهنمای ارسال پست (Admins):**\n"
         help_text += "۱. یک فایل **ویدیو** یا **گیف (Animation)** برای ربات ارسال کنید.\n"
-        help_text += "۲. ربات یک کیبورد شامل هشتگ‌های مجاز به شما نمایش می‌دهد.\n"
-        help_text += "۳. ربات از شما می‌خواهد روی پیامش **ریپلای (Reply)** کنید. کافیست روی دکمه هشتگ در کیبورد کلیک کنید تا ریپلای انجام شود.\n"
+        help_text += "۲. ربات در زیر همان پیام دکمه‌های شیشه‌ای شامل هشتگ‌های مجاز به شما نمایش می‌دهد.\n"
+        help_text += "۳. کافیست روی یکی از دکمه‌ها کلیک کنید.\n"
         help_text += "۴. ربات به طور خودکار واترمارک کانال را روی ویدیو قرار داده و آن را در کانال منتشر می‌کند.\n\n"
-        help_text += "❌ برای لغو عملیات در مرحله انتخاب هشتگ، روی دکمه `Cancel` کلیک کنید."
+        help_text += "❌ برای لغو عملیات روی دکمه ❌ Cancel کلیک کنید."
     else:
         help_text += "⛔️ **عدم دسترسی**\n"
         help_text += "شما جزء ادمین‌های مجاز این ربات نیستید. این ربات یک ابزار خصوصی برای واترمارک ویدیوها است و استفاده عمومی ندارد."
@@ -122,16 +123,7 @@ async def report_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # Media Handling
 async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    tags = db.get_all_hashtags()
-    keyboard = [[KeyboardButton(tag)] for tag in tags]
-    keyboard.append([KeyboardButton("Cancel")])
-    
-    markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True, selective=True)
-    
-    # Send a message just to show the keyboard
-    await update.message.reply_text("Here are the available hashtags:", reply_markup=markup)
-    
-    # Extract file_id to store in memory mapping
+    # Extract file_id to store in user_data
     original_message = update.message
     file_id = None
     if original_message.animation:
@@ -145,43 +137,62 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Unsupported media type.")
         return
 
-    # Send the actual prompt for hashtag, forcing a reply
-    msg = await update.message.reply_text(
-        "Please select a hashtag for this media by replying to THIS message:",
-        reply_markup=ForceReply(selective=True),
-        reply_to_message_id=update.message.message_id
-    )
+    # Save to user_data (specific to the user handling this interaction)
+    context.user_data['pending_file_id'] = file_id
+
+    tags = db.get_all_hashtags()
+    keyboard = []
     
-    # Save the mapping of this prompt's message_id to the pending file_id
-    if context.chat_data is not None:
-        context.chat_data[msg.message_id] = file_id
+    # Group tags into rows of 2
+    row = []
+    for tag in tags:
+        row.append(InlineKeyboardButton(tag, callback_data=f"tag|{tag}"))
+        if len(row) == 2:
+            keyboard.append(row)
+            row = []
+    if row:
+        keyboard.append(row)
+        
+    keyboard.append([InlineKeyboardButton("❌ Cancel", callback_data="tag|Cancel")])
+    
+    markup = InlineKeyboardMarkup(keyboard)
+    
+    await update.message.reply_text("Please select a hashtag for this media:", reply_markup=markup)
 
-async def handle_hashtag_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # To find the original media, we rely on `reply_to_message` since we forced a reply.
-    if not update.message.reply_to_message:
+async def handle_inline_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    
+    # Permission check
+    user_id = query.from_user.id
+    if user_id != OWNER_ID and not db.is_admin(user_id):
+        await query.answer("You are not authorized.", show_alert=True)
         return
-
-    text = update.message.text
-    bot_prompt_msg = update.message.reply_to_message
+        
+    await query.answer()
+    
+    data = query.data
+    if not data.startswith("tag|"):
+        return
+        
+    text = data.split("|", 1)[1]
     
     if text == "Cancel":
-        await update.message.reply_text("Cancelled processing.", reply_to_message_id=update.message.message_id)
-        if context.chat_data and bot_prompt_msg.message_id in context.chat_data:
-            del context.chat_data[bot_prompt_msg.message_id]
+        await query.edit_message_text("Cancelled processing.")
+        if 'pending_file_id' in context.user_data:
+            del context.user_data['pending_file_id']
         return
         
     if not db.valid_hashtag(text):
-        await update.message.reply_text("Invalid hashtag. Please select from the keyboard or type an existing tag.", reply_to_message_id=update.message.message_id)
+        await query.edit_message_text("Invalid hashtag. Please select a valid one.")
         return
 
-    # In Telegram, the API does not send the grandparent message. Thus we stored the file_id in chat_data!
-    file_id = context.chat_data.get(bot_prompt_msg.message_id) if context.chat_data is not None else None
+    file_id = context.user_data.get('pending_file_id')
     
     if not file_id:
-        await update.message.reply_text("Could not find the original media. The bot might have restarted.", reply_to_message_id=update.message.message_id)
+        await query.edit_message_text("Could not find the original media. The bot might have restarted, or you need to send the file again.")
         return
 
-    status_msg = await update.message.reply_text("Downloading and processing video... Please wait.")
+    await query.edit_message_text("Downloading and processing video... Please wait.")
     
     input_path = f"input_{file_id}.mp4"
     output_path = f"output_{file_id}.mp4"
@@ -194,28 +205,27 @@ async def handle_hashtag_reply(update: Update, context: ContextTypes.DEFAULT_TYP
         success = await video.watermark_video(input_path, output_path, CHANNEL_USERNAME)
         
         if success:
-            # Send to channel
+            # Send to channel as ANIMATION (GIF)
             with open(output_path, 'rb') as f:
-                await context.bot.send_video(
+                await context.bot.send_animation(
                     chat_id=CHANNEL_USERNAME,
-                    video=f,
+                    animation=f,
                     caption=text
                 )
             
             # Log successful post
-            db.log_post(update.message.from_user.id)
-            await status_msg.edit_text("✅ Video processed and published to channel successfully!")
+            db.log_post(query.from_user.id)
+            await query.edit_message_text("✅ Video processed and published to channel successfully!")
         else:
-            await status_msg.edit_text("❌ Error processing video with FFmpeg.")
+            await query.edit_message_text("❌ Error processing video with FFmpeg.")
             
     except Exception as e:
         logger.error(f"Error handling media: {e}")
-        await status_msg.edit_text(f"❌ An error occurred: {e}")
+        await query.edit_message_text(f"❌ An error occurred: {e}")
     finally:
-        # Clean up mapping
-        bot_prompt_msg = update.message.reply_to_message
-        if bot_prompt_msg and context.chat_data and bot_prompt_msg.message_id in context.chat_data:
-            del context.chat_data[bot_prompt_msg.message_id]
+        # Clean up memory mapping
+        if 'pending_file_id' in context.user_data:
+            del context.user_data['pending_file_id']
         
         # Clean up files
         if os.path.exists(input_path):
@@ -259,9 +269,8 @@ def main():
     media_filter = admin_filter & (filters.ANIMATION | filters.VIDEO)
     app.add_handler(MessageHandler(media_filter, handle_media))
     
-    # Handle the hashtag reply
-    reply_filter = admin_filter & filters.TEXT & filters.REPLY
-    app.add_handler(MessageHandler(reply_filter, handle_hashtag_reply))
+    # Handle the inline button callbacks
+    app.add_handler(CallbackQueryHandler(handle_inline_button, pattern="^tag\\|"))
     
     logger.info(f"Starting bot webhook on port {PORT}...")
     app.run_webhook(
