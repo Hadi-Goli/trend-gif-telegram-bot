@@ -1,4 +1,5 @@
 import logging
+from logging.handlers import RotatingFileHandler
 import os
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 from telegram.ext import (
@@ -19,10 +20,17 @@ CHANNEL_USERNAME = os.environ.get("CHANNEL_USERNAME", "@bestgifsintheworld")
 KEYBOARD_MODE = os.environ.get("KEYBOARD_MODE", "INLINE").upper() # 'INLINE' or 'REPLY'
 
 
+# Ensure logs directory exists
+os.makedirs("logs", exist_ok=True)
+
 # Enable logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
+    level=logging.INFO,
+    handlers=[
+        RotatingFileHandler('logs/bot.log', maxBytes=5*1024*1024, backupCount=5, encoding='utf-8'),
+        logging.StreamHandler()
+    ]
 )
 logger = logging.getLogger(__name__)
 
@@ -308,11 +316,16 @@ async def handle_text_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file_id = context.user_data['pending_file_id']
     del context.user_data['pending_file_id']
     
-    status_msg = await update.message.reply_text("⏳ شروع فرآیند...", reply_markup=ReplyKeyboardRemove())
+    status_msg = await update.message.reply_text("⏳ در حال دانلود و پردازش ویدیو...", reply_markup=ReplyKeyboardRemove())
     
     async def update_text(msg):
-        await status_msg.edit_text(msg)
-        
+        if msg == "⏳ در حال دانلود و پردازش ویدیو...":
+            return
+        try:
+            await status_msg.edit_text(msg)
+        except Exception:
+            await update.message.reply_text(msg)
+            
     await process_video_task(file_id, text, context, update_text, update.message.from_user.id)
 
 

@@ -10,6 +10,10 @@ venv/
 ENV/
 .env
 
+# Logs
+logs/
+*.log
+
 # Databases
 *.db
 *.sqlite
