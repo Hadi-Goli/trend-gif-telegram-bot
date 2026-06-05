@@ -1,6 +1,7 @@
 import logging
 from logging.handlers import RotatingFileHandler
 import os
+import html
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 from telegram.ext import (
     ApplicationBuilder,
@@ -155,18 +156,19 @@ async def list_admins_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("هیچ ادمینی (به جز شما) ثبت نشده است.")
         return
         
-    msg = "👥 **لیست ادمین‌های ربات:**\n\n"
+    msg = "👥 <b>لیست ادمین‌های ربات:</b>\n\n"
     for admin in admins:
         try:
             chat = await context.bot.get_chat(admin)
             name = chat.first_name or "بدون نام"
             if chat.username:
                 name += f" (@{chat.username})"
+            name = html.escape(name)
         except Exception:
             name = "ناشناس"
             
-        msg += f"▪️ {name} (`{admin}`)\n"
-    await update.message.reply_text(msg, parse_mode='Markdown')
+        msg += f"▪️ {name} (<code>{admin}</code>)\n"
+    await update.message.reply_text(msg, parse_mode='HTML')
 
 async def list_tags_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tags = db.get_all_hashtags()
@@ -174,10 +176,10 @@ async def list_tags_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("هیچ هشتگی ثبت نشده است.")
         return
     
-    msg = "📝 **لیست هشتگ‌های فعلی:**\n\n"
+    msg = "📝 <b>لیست هشتگ‌های فعلی:</b>\n\n"
     for tag in tags:
-        msg += f"▪️ {tag}\n"
-    await update.message.reply_text(msg, parse_mode='Markdown')
+        msg += f"▪️ {html.escape(tag)}\n"
+    await update.message.reply_text(msg, parse_mode='HTML')
 
 async def report_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     results = db.get_report_data()
@@ -185,19 +187,20 @@ async def report_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("در این ماه پستی ارسال نشده است.")
         return
         
-    report_lines = ["📊 **گزارش فعالیت در این ماه:**\n"]
+    report_lines = ["📊 <b>گزارش فعالیت در این ماه:</b>\n"]
     for admin_id, count in results:
         try:
             chat = await context.bot.get_chat(admin_id)
             name = chat.first_name or "بدون نام"
             if chat.username:
                 name += f" (@{chat.username})"
+            name = html.escape(name)
         except Exception:
             name = "ناشناس"
             
-        report_lines.append(f"👤 {name} (`{admin_id}`): {count} پست")
+        report_lines.append(f"👤 {name} (<code>{admin_id}</code>): {count} پست")
         
-    await update.message.reply_text("\n".join(report_lines), parse_mode='Markdown')
+    await update.message.reply_text("\n".join(report_lines), parse_mode='HTML')
 
 
 async def process_video_task(file_id, hashtag, context, update_text_func, user_id):
