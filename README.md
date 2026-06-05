@@ -25,6 +25,7 @@ This project serves as a showcase of modern Python backend development, DevOps p
 *   **Media Processing Engine**: Seamless integration with FFmpeg via `asyncio.subprocess` to manipulate video streams, apply styling (shadows, fonts), and strip audio tracks dynamically.
 *   **DevOps & CI/CD Pipeline**: Fully automated deployments to a remote server using GitHub Actions, SCP, and SSH. 
 *   **Dockerized Environment**: The bot and all its complex system dependencies (like FFmpeg) are encapsulated in a lightweight container, ensuring complete environment parity.
+*   **Persistent Logging**: Integrates Python's `RotatingFileHandler` mapped securely to Docker volumes, enabling historical debugging without infinite disk consumption.
 *   **State Management without FSM**: Clever use of Telegram's `ForceReply` and `context.chat_data` mapping to track active video processing sessions seamlessly.
 *   **Strict Access Control**: Granular permission layers ensuring only the `OWNER_ID` or registered `admins` in the local SQLite database can trigger commands.
 
@@ -95,6 +96,9 @@ docker compose up -d --build
 ## 🛡️ Administrative Commands (Owner Only)
 *   `/start`: Bot health check.
 *   `/add_admin <user_id>`: Whitelists a new administrator.
+*   `/remove_admin <user_id>`: Revokes administrator access.
+*   `/list_admins`: Displays a list of all current administrators.
 *   `/add_tag <hashtag>`: Registers a new category tag.
 *   `/remove_tag <hashtag>`: Deletes an existing tag.
+*   `/list_tags`: Displays all available hashtags (available to both Owner and Admins).
 *   `/report`: Generates monthly activity statistics per administrator.
