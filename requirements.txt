@@ -1,0 +1,3 @@
+python-telegram-bot>=20.0
+# sqlite3 is built-in
+# asyncio is built-in
