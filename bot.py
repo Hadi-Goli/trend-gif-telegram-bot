@@ -44,7 +44,7 @@ owner_filter = OwnerFilter()
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Hello Owner! The bot is running.")
+    await update.message.reply_text("سلام ادمین! ربات با موفقیت در حال اجراست. 🚀")
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id if update.message.from_user else None
@@ -83,21 +83,21 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def add_admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        await update.message.reply_text("Usage: /add_admin <user_id>")
+        await update.message.reply_text("نحوه استفاده: /add_admin <آیدی_عددی>")
         return
     
     try:
         new_admin_id = int(context.args[0])
         if db.add_admin(new_admin_id):
-            await update.message.reply_text(f"Admin {new_admin_id} added successfully.")
+            await update.message.reply_text(f"✅ ادمین {new_admin_id} اضافه شد.")
         else:
-            await update.message.reply_text(f"Admin {new_admin_id} is already in the database.")
+            await update.message.reply_text(f"⚠️ ادمین {new_admin_id} از قبل وجود دارد.")
     except ValueError:
-        await update.message.reply_text("User ID must be an integer.")
+        await update.message.reply_text("❌ آیدی باید عدد باشد.")
 
 async def add_tag_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        await update.message.reply_text("Usage: /add_tag <hashtag>")
+        await update.message.reply_text("نحوه استفاده: /add_tag <هشتگ>")
         return
         
     tag = context.args[0]
@@ -105,13 +105,13 @@ async def add_tag_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         tag = '#' + tag
         
     if db.add_hashtag(tag):
-        await update.message.reply_text(f"Hashtag {tag} added successfully.")
+        await update.message.reply_text(f"✅ هشتگ {tag} اضافه شد.")
     else:
-        await update.message.reply_text(f"Hashtag {tag} is already in the database.")
+        await update.message.reply_text(f"⚠️ هشتگ {tag} تکراری است.")
 
 async def remove_tag_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        await update.message.reply_text("Usage: /remove_tag <hashtag>")
+        await update.message.reply_text("نحوه استفاده: /remove_tag <هشتگ>")
         return
         
     tag = context.args[0]
@@ -119,9 +119,9 @@ async def remove_tag_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         tag = '#' + tag
         
     if db.remove_hashtag(tag):
-        await update.message.reply_text(f"Hashtag {tag} removed successfully.")
+        await update.message.reply_text(f"✅ هشتگ {tag} حذف شد.")
     else:
-        await update.message.reply_text(f"Hashtag {tag} was not found.")
+        await update.message.reply_text(f"⚠️ هشتگ {tag} پیدا نشد.")
 
 async def report_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     report_text = db.get_report()
@@ -129,7 +129,7 @@ async def report_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def process_video_task(file_id, hashtag, context, update_text_func, user_id):
-    await update_text_func("Downloading and processing video... Please wait.")
+    await update_text_func("⏳ در حال دانلود و پردازش ویدیو...")
     
     input_path = f"input_{file_id}.mp4"
     output_path = f"output_{file_id}.mp4"
@@ -152,13 +152,13 @@ async def process_video_task(file_id, hashtag, context, update_text_func, user_i
             
             # Log successful post
             db.log_post(user_id)
-            await update_text_func("✅ Video processed and published to channel successfully!")
+            await update_text_func("✅ گیف در کانال منتشر شد!")
         else:
-            await update_text_func("❌ Error processing video with FFmpeg.")
+            await update_text_func("❌ خطا در واترمارک ویدیو.")
             
     except Exception as e:
         logger.error(f"Error handling media: {e}")
-        await update_text_func(f"❌ An error occurred: {e}")
+        await update_text_func(f"❌ خطای سیستمی: {e}")
     finally:
         # Clean up files
         if os.path.exists(input_path):
@@ -179,7 +179,7 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
         file_id = original_message.document.file_id
 
     if not file_id:
-        await update.message.reply_text("Unsupported media type.")
+        await update.message.reply_text("❌ لطفاً فقط ویدیو یا گیف ارسال کنید.")
         return
 
     # Save to user_data (specific to the user handling this interaction)
@@ -198,14 +198,14 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if row:
             keyboard.append(row)
             
-        keyboard.append([InlineKeyboardButton("❌ Cancel", callback_data="tag|Cancel")])
+        keyboard.append([InlineKeyboardButton("❌ لغو", callback_data="tag|Cancel")])
         markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text("Please select a hashtag for this media:", reply_markup=markup)
+        await update.message.reply_text("👇 یک هشتگ برای این ویدیو انتخاب کنید:", reply_markup=markup)
     else:
         keyboard = [[KeyboardButton(tag)] for tag in tags]
-        keyboard.append([KeyboardButton("Cancel")])
+        keyboard.append([KeyboardButton("لغو")])
         markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, selective=True)
-        await update.message.reply_text("Please select a hashtag from the keyboard below or type it:", reply_markup=markup)
+        await update.message.reply_text("👇 یک هشتگ از کیبورد انتخاب کنید یا تایپ کنید:", reply_markup=markup)
 
 async def handle_inline_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -213,7 +213,7 @@ async def handle_inline_button(update: Update, context: ContextTypes.DEFAULT_TYP
     # Permission check
     user_id = query.from_user.id
     if user_id != OWNER_ID and not db.is_admin(user_id):
-        await query.answer("You are not authorized.", show_alert=True)
+        await query.answer("شما دسترسی ندارید.", show_alert=True)
         return
         
     await query.answer()
@@ -224,20 +224,20 @@ async def handle_inline_button(update: Update, context: ContextTypes.DEFAULT_TYP
         
     text = data.split("|", 1)[1]
     
-    if text == "Cancel":
-        await query.edit_message_text("Cancelled processing.")
+    if text == "Cancel" or text == "لغو":
+        await query.edit_message_text("🚫 عملیات لغو شد.")
         if 'pending_file_id' in context.user_data:
             del context.user_data['pending_file_id']
         return
         
     if not db.valid_hashtag(text):
-        await query.edit_message_text("Invalid hashtag. Please select a valid one.")
+        await query.edit_message_text("❌ هشتگ نامعتبر است.")
         return
 
     file_id = context.user_data.get('pending_file_id')
     
     if not file_id:
-        await query.edit_message_text("Could not find the original media. The bot might have restarted, or you need to send the file again.")
+        await query.edit_message_text("⚠️ فایل پیدا نشد. دوباره بفرستید.")
         return
 
     del context.user_data['pending_file_id']
@@ -256,19 +256,19 @@ async def handle_text_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     text = update.message.text
     
-    if text == "Cancel":
-        await update.message.reply_text("Cancelled processing.", reply_markup=ReplyKeyboardRemove())
+    if text == "Cancel" or text == "لغو":
+        await update.message.reply_text("🚫 عملیات لغو شد.", reply_markup=ReplyKeyboardRemove())
         del context.user_data['pending_file_id']
         return
         
     if not db.valid_hashtag(text):
-        await update.message.reply_text("Invalid hashtag. Please select from the keyboard or type an existing tag.")
+        await update.message.reply_text("❌ هشتگ نامعتبر است.", reply_markup=ReplyKeyboardRemove())
         return
 
     file_id = context.user_data['pending_file_id']
     del context.user_data['pending_file_id']
     
-    status_msg = await update.message.reply_text("Starting process...", reply_markup=ReplyKeyboardRemove())
+    status_msg = await update.message.reply_text("⏳ شروع فرآیند...", reply_markup=ReplyKeyboardRemove())
     
     async def update_text(msg):
         await status_msg.edit_text(msg)

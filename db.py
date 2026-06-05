@@ -118,10 +118,10 @@ def get_report() -> str:
     conn.close()
     
     if not results:
-        return "No posts this month."
+        return "در این ماه پستی ارسال نشده است."
         
-    report_lines = ["📊 Posts this month:"]
+    report_lines = ["📊 گزارش فعالیت در این ماه:"]
     for admin_id, count in results:
-        report_lines.append(f"Admin {admin_id}: {count} posts")
+        report_lines.append(f"👤 ادمین {admin_id}: {count} پست")
         
     return "\n".join(report_lines)
