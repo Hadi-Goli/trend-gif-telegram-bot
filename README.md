@@ -71,6 +71,7 @@ The bot utilizes environment variables to ensure secrets are never leaked into v
 | `BOT_TOKEN` | Token provided by @BotFather | `123456789:ABCDEF...` |
 | `IP_ADDRESS` | Public IP of the host server | `45.91.248.25` |
 | `PORT` | Webhook listening port | `8443` |
+| `KEYBOARD_MODE` | UI Type for hashtags (`INLINE` or `REPLY`) | `INLINE` |
 
 *Note: For the webhook to function securely, `public.pem` and `private.key` SSL certificates must exist in the root directory.*
 

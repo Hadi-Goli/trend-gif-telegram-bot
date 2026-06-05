@@ -71,6 +71,7 @@ graph TD
 | `BOT_TOKEN` | توکن دریافتی از BotFather | `123456789:ABCDEF...` |
 | `IP_ADDRESS` | آی‌پی سرور اصلی شما | `45.91.248.25` |
 | `PORT` | پورت شنود Webhook | `8443` |
+| `KEYBOARD_MODE` | نوع نمایش دکمه‌ها (`INLINE` شیشه‌ای یا `REPLY` کیبوردی) | `INLINE` |
 
 *نکته: برای عملکرد صحیح Webhook روی سرور، فایل‌های گواهینامه SSL یعنی `public.pem` و `private.key` باید در کنار فایل‌های پروژه قرار داشته باشند.*
 

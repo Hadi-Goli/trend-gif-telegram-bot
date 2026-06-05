@@ -38,6 +38,7 @@ jobs:
             echo "PORT=8443" >> .env
             echo "OWNER_ID=${{ secrets.OWNER_ID }}" >> .env
             echo "CHANNEL_USERNAME=${{ secrets.CHANNEL_USERNAME }}" >> .env
+            echo "KEYBOARD_MODE=${{ secrets.KEYBOARD_MODE }}" >> .env
             
             # Rebuild and restart the container
             docker compose down
