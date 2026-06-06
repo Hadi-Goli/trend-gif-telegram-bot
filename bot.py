@@ -478,21 +478,25 @@ async def handle_text_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def router_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Route media messages to admin or community flows explicitly, bypassing PTB filter caching issues."""
+    if not update.message or update.message.chat.type != 'private':
+        return
+        
     user_id = update.message.from_user.id if update.message.from_user else None
     if user_id == OWNER_ID or db.is_admin(user_id):
         await handle_media(update, context)
     else:
-        if update.message.chat.type == 'private':
-            await community.handle_user_gif(update, context)
+        await community.handle_user_gif(update, context)
 
 async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Route text messages to admin or community flows explicitly."""
+    if not update.message or update.message.chat.type != 'private':
+        return
+        
     user_id = update.message.from_user.id if update.message.from_user else None
     if user_id == OWNER_ID or db.is_admin(user_id):
         await handle_text_reply(update, context)
     else:
-        if update.message.chat.type == 'private':
-            await community.handle_user_text(update, context)
+        await community.handle_user_text(update, context)
 
 
 # ─── Main ─────────────────────────────────────────────────────────
