@@ -91,7 +91,9 @@ async def handle_submission_callback(update: Update, context: ContextTypes.DEFAU
     query = update.callback_query
     data = query.data
 
-    if data == "usub_ignore":
+    if data == "usub_start":
+        await _start_submission(query, context)
+    elif data == "usub_ignore":
         await query.answer()
     elif data.startswith("usub_tag|"):
         await _toggle_tag(query, context)
