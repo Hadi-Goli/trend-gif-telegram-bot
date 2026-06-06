@@ -44,18 +44,27 @@ def _review_buttons(submission_id: int) -> InlineKeyboardMarkup:
     ])
 
 
-def _tag_edit_keyboard(submission_id: int, all_tags: list, selected: set) -> InlineKeyboardMarkup:
+def chunk_list(lst, n):
+    return [lst[i:i + n] for i in range(0, len(lst), n)]
+
+def _tag_edit_keyboard(submission_id: int, grouped_tags: dict, selected: set) -> InlineKeyboardMarkup:
     """Hashtag toggle keyboard for in-group editing."""
     keyboard = []
-    row = []
-    for tag in all_tags:
-        label = f"✅ {tag}" if tag in selected else tag
-        row.append(InlineKeyboardButton(label, callback_data=f"rev_tag|{submission_id}|{tag}"))
-        if len(row) == 2:
-            keyboard.append(row)
+    
+    for cat_name, tags in grouped_tags.items():
+        # Category header
+        keyboard.append([InlineKeyboardButton(f"━━━ {cat_name} ━━━", callback_data="rev_ignore")])
+        
+        avg_len = sum(len(t) for t in tags) / len(tags) if tags else 0
+        chunk_size = 2 if avg_len > 15 else 3
+        
+        for chunk in chunk_list(tags, chunk_size):
             row = []
-    if row:
-        keyboard.append(row)
+            for tag in chunk:
+                label = f"✅ {tag}" if tag in selected else tag
+                row.append(InlineKeyboardButton(label, callback_data=f"rev_tag|{submission_id}|{tag}"))
+            keyboard.append(row)
+            
     keyboard.append([
         InlineKeyboardButton("↩️ بازگشت", callback_data=f"rev_tags_back|{submission_id}"),
         InlineKeyboardButton("💾 ذخیره هشتگ‌ها", callback_data=f"rev_tags_done|{submission_id}"),
@@ -98,7 +107,9 @@ async def handle_review_callback(update: Update, context: ContextTypes.DEFAULT_T
     query = update.callback_query
     data = query.data
 
-    if data.startswith("rev_claim|"):
+    if data == "rev_ignore":
+        await query.answer()
+    elif data.startswith("rev_claim|"):
         await _claim(query, context)
     elif data.startswith("rev_approve|"):
         await _approve(query, context)
@@ -293,11 +304,11 @@ async def _edit_tags_enter(query, context):
     # Copy current hashtags into a temp editing session
     _tag_edit_sessions[sub_id] = set(submission['hashtags'])
 
-    all_tags = db.get_all_hashtags()
+    grouped_tags = db.get_all_hashtags_grouped()
     await query.answer()
     try:
         await query.edit_message_reply_markup(
-            reply_markup=_tag_edit_keyboard(sub_id, all_tags, _tag_edit_sessions[sub_id]),
+            reply_markup=_tag_edit_keyboard(sub_id, grouped_tags, _tag_edit_sessions[sub_id]),
         )
     except Exception:
         pass
@@ -322,10 +333,10 @@ async def _edit_tags_toggle(query, context):
     _tag_edit_sessions[sub_id] = selected
 
     await query.answer()
-    all_tags = db.get_all_hashtags()
+    grouped_tags = db.get_all_hashtags_grouped()
     try:
         await query.edit_message_reply_markup(
-            reply_markup=_tag_edit_keyboard(sub_id, all_tags, selected),
+            reply_markup=_tag_edit_keyboard(sub_id, grouped_tags, selected),
         )
     except Exception:
         pass
