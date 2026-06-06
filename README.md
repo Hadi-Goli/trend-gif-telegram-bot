@@ -15,7 +15,7 @@
 ---
 
 ## 📌 Overview
-An enterprise-grade, asynchronous Telegram Bot designed to streamline media publishing for Telegram channels. It processes video and animation (GIF) files, applies customized text watermarks dynamically using **FFmpeg**, and publishes them to a target channel—all while running securely in an isolated Docker container via **HTTPS Webhooks**.
+An enterprise-grade, asynchronous Telegram Bot designed to streamline media publishing for Telegram channels. It processes video and animation (GIF) files, applies proportional image watermarks dynamically using **FFmpeg**, and publishes them to a target channel—all while running securely in an isolated Docker container via **HTTPS Webhooks**.
 
 The bot also features a **Community Submission System** that allows public users to submit GIFs for channel publication, with a full admin moderation workflow and tiered anti-spam protection.
 
