@@ -25,6 +25,7 @@ This project serves as a showcase of modern Python backend development, DevOps p
 
 *   **Asynchronous Webhook Architecture**: Transitioned from polling to a secure, high-performance HTTPS webhook model for production readiness.
 *   **Media Processing Engine**: Seamless integration with FFmpeg via `asyncio.subprocess` to manipulate video streams, apply styling (shadows, fonts), and strip audio tracks dynamically.
+*   **Categorized Hashtag UI**: Interactive multi-hashtag selection using dynamic inline glass buttons. Hashtags are intelligently grouped by category, and columns automatically resize based on tag length for optimal mobile viewing.
 *   **Community GIF Submissions**: Public users can submit GIFs with hashtags and credit names. Submissions go through a moderated review process before publication.
 *   **Admin Moderation Workflow**: Admins review submissions in a dedicated Telegram group with inline buttons—claim, edit hashtags, approve, or reject—all without leaving the group chat.
 *   **Tiered Anti-Spam Protection**: Progressive rate limiting (10 free → 3/10min → 1/30min → daily lock) prevents abuse while allowing genuine contributions.
