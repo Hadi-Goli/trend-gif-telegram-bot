@@ -30,8 +30,8 @@ def _hashtag_keyboard(grouped_tags: dict, selected: set) -> InlineKeyboardMarkup
         # Category header (non-clickable)
         keyboard.append([InlineKeyboardButton(f"━━━ {cat_name} ━━━", callback_data="usub_ignore")])
         
-        avg_len = sum(len(t) for t in tags) / len(tags) if tags else 0
-        chunk_size = 2 if avg_len > 15 else 3
+        # Always use 3 columns
+        chunk_size = 3
         
         for chunk in chunk_list(tags, chunk_size):
             row = []
@@ -42,7 +42,7 @@ def _hashtag_keyboard(grouped_tags: dict, selected: set) -> InlineKeyboardMarkup
             
     keyboard.append([
         InlineKeyboardButton("❌ لغو", callback_data="usub_cancel"),
-        InlineKeyboardButton("✅ تأیید و ادامه", callback_data="usub_tags_done"),
+        InlineKeyboardButton("✅ تایید و نهایی کردن", callback_data="usub_tags_done"),
     ])
     return InlineKeyboardMarkup(keyboard)
 

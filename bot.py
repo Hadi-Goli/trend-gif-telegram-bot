@@ -333,10 +333,8 @@ def get_inline_keyboard(grouped_tags, selected_tags, prefix="tag"):
         # Category header (non-clickable)
         keyboard.append([InlineKeyboardButton(f"━━━ {cat_name} ━━━", callback_data="ignore")])
         
-        # Decide chunk size based on average tag length
-        # if tags are very long, use 2 columns, otherwise 3
-        avg_len = sum(len(t) for t in tags) / len(tags) if tags else 0
-        chunk_size = 2 if avg_len > 15 else 3
+        # Always use 3 columns as requested
+        chunk_size = 3
         
         for chunk in chunk_list(tags, chunk_size):
             row = []
@@ -347,7 +345,7 @@ def get_inline_keyboard(grouped_tags, selected_tags, prefix="tag"):
             
     keyboard.append([
         InlineKeyboardButton("❌ لغو", callback_data="action|Cancel"),
-        InlineKeyboardButton("✅ تأیید و ارسال", callback_data="action|Done")
+        InlineKeyboardButton("✅ تایید و نهایی کردن", callback_data="action|Done")
     ])
     return InlineKeyboardMarkup(keyboard)
 
@@ -356,13 +354,13 @@ def get_reply_keyboard(grouped_tags):
     for cat_name, tags in grouped_tags.items():
         keyboard.append([KeyboardButton(f"━━━ {cat_name} ━━━")])
         
-        avg_len = sum(len(t) for t in tags) / len(tags) if tags else 0
-        chunk_size = 2 if avg_len > 15 else 3
+        # Always use 3 columns as requested
+        chunk_size = 3
         
         for chunk in chunk_list(tags, chunk_size):
             keyboard.append([KeyboardButton(tag) for tag in chunk])
             
-    keyboard.append([KeyboardButton("❌ لغو"), KeyboardButton("✅ تأیید نهایی")])
+    keyboard.append([KeyboardButton("❌ لغو"), KeyboardButton("✅ تایید و نهایی کردن")])
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, selective=True)
 
 # Media Handling (Admin-only — direct publish to channel)
@@ -518,7 +516,7 @@ async def handle_text_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
         del context.user_data['pending_media']
         return
         
-    if text == "✅ تأیید نهایی":
+    if text == "✅ تایید و نهایی کردن":
         selected_tags = pending_media['tags']
         if not selected_tags:
             await update.message.reply_text("لطفاً حداقل یک هشتگ انتخاب کنید!")
@@ -550,7 +548,7 @@ async def handle_text_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
             action_text = "اضافه شد"
             
         current_tags = " ".join(pending_media['tags']) if pending_media['tags'] else "(هیچ)"
-        await update.message.reply_text(f"✔️ هشتگ {text} {action_text}.\n\nهشتگ‌های فعلی: {current_tags}\n\nهشتگ دیگری انتخاب کنید یا «✅ تأیید نهایی» را بزنید.")
+        await update.message.reply_text(f"✔️ هشتگ {text} {action_text}.\n\nهشتگ‌های فعلی: {current_tags}\n\nهشتگ دیگری انتخاب کنید یا «✅ تایید و نهایی کردن» را بزنید.")
     else:
         await update.message.reply_text("❌ هشتگ نامعتبر است.")
 

@@ -55,8 +55,8 @@ def _tag_edit_keyboard(submission_id: int, grouped_tags: dict, selected: set) ->
         # Category header
         keyboard.append([InlineKeyboardButton(f"━━━ {cat_name} ━━━", callback_data="rev_ignore")])
         
-        avg_len = sum(len(t) for t in tags) / len(tags) if tags else 0
-        chunk_size = 2 if avg_len > 15 else 3
+        # Always use 3 columns
+        chunk_size = 3
         
         for chunk in chunk_list(tags, chunk_size):
             row = []
@@ -66,8 +66,8 @@ def _tag_edit_keyboard(submission_id: int, grouped_tags: dict, selected: set) ->
             keyboard.append(row)
             
     keyboard.append([
-        InlineKeyboardButton("↩️ بازگشت", callback_data=f"rev_tags_back|{submission_id}"),
-        InlineKeyboardButton("💾 ذخیره هشتگ‌ها", callback_data=f"rev_tags_done|{submission_id}"),
+        InlineKeyboardButton("❌ لغو", callback_data=f"rev_tags_back|{submission_id}"),
+        InlineKeyboardButton("✅ تایید و نهایی کردن", callback_data=f"rev_tags_done|{submission_id}"),
     ])
     return InlineKeyboardMarkup(keyboard)
 
