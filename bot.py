@@ -474,6 +474,27 @@ async def handle_text_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ هشتگ نامعتبر است.")
 
 
+# ─── Routing ──────────────────────────────────────────────────────
+
+async def router_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Route media messages to admin or community flows explicitly, bypassing PTB filter caching issues."""
+    user_id = update.message.from_user.id if update.message.from_user else None
+    if user_id == OWNER_ID or db.is_admin(user_id):
+        await handle_media(update, context)
+    else:
+        if update.message.chat.type == 'private':
+            await community.handle_user_gif(update, context)
+
+async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Route text messages to admin or community flows explicitly."""
+    user_id = update.message.from_user.id if update.message.from_user else None
+    if user_id == OWNER_ID or db.is_admin(user_id):
+        await handle_text_reply(update, context)
+    else:
+        if update.message.chat.type == 'private':
+            await community.handle_user_text(update, context)
+
+
 # ─── Main ─────────────────────────────────────────────────────────
 
 def main():
@@ -515,29 +536,18 @@ def main():
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("cancel", community.handle_cancel_command))
     
-    # ── Admin Media Handlers ──
-    media_filter = admin_filter & (filters.ANIMATION | filters.VIDEO)
-    app.add_handler(MessageHandler(media_filter, handle_media))
+    # ── Media Router Handlers ──
+    app.add_handler(MessageHandler(filters.ANIMATION | filters.VIDEO, router_media))
     
     # Admin inline button callbacks (tag|* and action|*)
     app.add_handler(CallbackQueryHandler(handle_inline_button, pattern=r"^(tag|action)\|"))
     
-    # Admin text reply (REPLY keyboard mode)
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & admin_filter, handle_text_reply))
+    # ── Text Router Handlers ──
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, router_text))
     
     # ── Community Submission Handlers ──
     # Callback queries from users (usub_*)
     app.add_handler(CallbackQueryHandler(community.handle_submission_callback, pattern=r"^usub_"))
-    
-    # GIF/video from non-admin users in private chat
-    community_media_filter = ~admin_filter & filters.ChatType.PRIVATE & (filters.ANIMATION | filters.VIDEO)
-    app.add_handler(MessageHandler(community_media_filter, community.handle_user_gif))
-    
-    # Text from non-admin users in private chat (custom name input)
-    app.add_handler(MessageHandler(
-        filters.TEXT & ~filters.COMMAND & ~admin_filter & filters.ChatType.PRIVATE,
-        community.handle_user_text,
-    ))
     
     # ── Review Handlers (admin actions in review group) ──
     app.add_handler(CallbackQueryHandler(review.handle_review_callback, pattern=r"^rev_"))
