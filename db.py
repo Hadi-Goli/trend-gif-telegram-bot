@@ -15,47 +15,48 @@ def init_db():
         )
     ''')
     
-    # 2. hashtags: columns (tag_name TEXT PRIMARY KEY)
+    # 6. categories: grouping for hashtags
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS hashtags (
-            tag_name TEXT PRIMARY KEY
-        )
-    ''')
-    
-    # 3. logs: columns (id INTEGER PRIMARY KEY, admin_id INTEGER, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS logs (
+        CREATE TABLE IF NOT EXISTS categories (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            admin_id INTEGER,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            name TEXT UNIQUE,
+            display_order INTEGER DEFAULT 0
         )
     ''')
     
-    # 4. submissions: community GIF submissions awaiting review
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS submissions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            user_display_name TEXT NOT NULL,
-            file_id TEXT NOT NULL,
-            hashtags TEXT NOT NULL,
-            status TEXT DEFAULT 'pending',
-            claimed_by INTEGER,
-            review_message_id INTEGER,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            reviewed_at DATETIME
-        )
-    ''')
-    
-    # 5. rate_limits: tracks submission timestamps per user for anti-spam
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS rate_limits (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
+    # 2. hashtags: columns (tag_name TEXT PRIMARY KEY, category_id INTEGER)
+    # Check if category_id exists (for migration)
+    cursor.execute("PRAGMA table_info(hashtags)")
+    columns = [row[1] for row in cursor.fetchall()]
+    if 'category_id' not in columns:
+        # Recreate the table with the new column since SQLite ALTER TABLE ADD COLUMN
+        # with foreign keys can be tricky, but ADD COLUMN works if not enforcing right now.
+        cursor.execute('ALTER TABLE hashtags ADD COLUMN category_id INTEGER REFERENCES categories(id)')
+        
+        # Populate initial categories requested by the user
+        initial_categories = {
+            "🎭 واکنشها و احساسات": ["#خنده@trend_gif", "#تعجب@trend_gif", "#فشار@trend_gif", "#واکنش_صادقانه@trend_gif", "#پوکر_فیس@trend_gif", "#آره@trend_gif", "#نه@trend_gif", "#pain@trend_gif"],
+            "🗣 تکیهکلام و میم ها": ["#ببین_اخوی@trend_gif", "#فکرشو_نمیکردی@trend_gif", "#بینظیره@trend_gif", "#فعک_نکنم@trend_gif", "#سس_ماست@trend_gif", "#اونایی_که_میدونن@trend_gif", "#کلیچه@trend_gif", "#منطقی@trend_gif"],
+            "🐶 حیوانات": ["#سگ@trend_gif", "#گربه@trend_gif", "#میمون@trend_gif", "#shiba_inu@trend_gif", "#marmot@trend_gif"],
+            "👤 اشخاص و چهرهها": ["#علی_منصور@trend_gif", "#بهنام_تشکر@trend_gif", "#کوکسل_بابا@trend_gif", "#ابوطالب@trend_gif", "#کیومرث@trend_gif"],
+            "🍿 انیمیشن و کارتون": ["#باب_اسفنجی@trend_gif", "#پاتریک@trend_gif", "#باب@trend_gif", "#انیمیشن@trend_gif"],
+            "📺 موضوعات (ورزش، هنر، جامعه)": ["#فوتبال@trend_gif", "#رپ@trend_gif", "#سریال@trend_gif", "#هالیوود@trend_gif", "#سیاسی@trend_gif", "#بیزنس@trend_gif", "#ایرانی@trend_gif", "#کرج@trend_gif"],
+            "❤️ Mood": ["#عاشقانه@trend_gif", "#بغل@trend_gif", "#مرام_و_معرفت@trend_gif", "#گل@trend_gif", "#نینی@trend_gif"],
+            "💁♂️ وضعیت": ["#رقص@trend_gif", "#دلقک@trend_gif", "#وضعیت@trend_gif", "#پیگیری@trend_gif", "#خوشتیپ@trend_gif", "#برق@trend_gif", "#smoke@trend_gif"],
+            "📌 سایر": ["#مفهومی@trend_gif", "#فینگلیش@trend_gif", "#متفرقه@trend_gif"]
+        }
+        
+        order = 10
+        for cat_name, tags in initial_categories.items():
+            cursor.execute('INSERT OR IGNORE INTO categories (name, display_order) VALUES (?, ?)', (cat_name, order))
+            cursor.execute('SELECT id FROM categories WHERE name = ?', (cat_name,))
+            cat_id = cursor.fetchone()[0]
+            
+            for tag in tags:
+                cursor.execute('INSERT OR IGNORE INTO hashtags (tag_name, category_id) VALUES (?, ?)', (tag, cat_id))
+                cursor.execute('UPDATE hashtags SET category_id = ? WHERE tag_name = ?', (cat_id, tag))
+            order += 10
+            
     conn.commit()
     conn.close()
 
@@ -99,7 +100,47 @@ def remove_admin(user_id: int) -> bool:
     conn.close()
     return deleted
 
-# ─── Hashtag helpers ─────────────────────────────────────────────
+# ─── Categories & Hashtags ───────────────────────────────────────
+
+def get_categories() -> list[tuple[int, str]]:
+    """Returns a list of (id, name) for all categories."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute('SELECT id, name FROM categories ORDER BY display_order ASC, id ASC')
+    cats = cursor.fetchall()
+    conn.close()
+    return cats
+
+def add_category(name: str) -> bool:
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    try:
+        cursor.execute('INSERT INTO categories (name) VALUES (?)', (name,))
+        conn.commit()
+        success = True
+    except sqlite3.IntegrityError:
+        success = False
+    finally:
+        conn.close()
+    return success
+
+def remove_category(cat_id: int) -> bool:
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    
+    # Check if we have a "📌 سایر" category to move tags to
+    cursor.execute('SELECT id FROM categories WHERE name = ?', ("📌 سایر",))
+    default_cat = cursor.fetchone()
+    if default_cat and default_cat[0] != cat_id:
+        cursor.execute('UPDATE hashtags SET category_id = ? WHERE category_id = ?', (default_cat[0], cat_id))
+    else:
+        cursor.execute('UPDATE hashtags SET category_id = NULL WHERE category_id = ?', (cat_id,))
+        
+    cursor.execute('DELETE FROM categories WHERE id = ?', (cat_id,))
+    deleted = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return deleted
 
 def get_all_hashtags() -> list:
     conn = sqlite3.connect(DB_NAME)
@@ -109,17 +150,50 @@ def get_all_hashtags() -> list:
     conn.close()
     return tags
 
-def add_hashtag(tag_name: str) -> bool:
+def get_all_hashtags_grouped() -> dict:
+    """Returns a dict mapping category name to a list of its hashtags."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    
+    query = '''
+        SELECT c.name, h.tag_name 
+        FROM hashtags h
+        LEFT JOIN categories c ON h.category_id = c.id
+        ORDER BY c.display_order ASC, c.id ASC, h.tag_name ASC
+    '''
+    cursor.execute(query)
+    rows = cursor.fetchall()
+    conn.close()
+    
+    grouped = {}
+    for cat_name, tag in rows:
+        cat = cat_name if cat_name else "دسته‌بندی نشده"
+        if cat not in grouped:
+            grouped[cat] = []
+        grouped[cat].append(tag)
+        
+    return grouped
+
+def add_hashtag(tag_name: str, category_id: int = None) -> bool:
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     try:
-        cursor.execute('INSERT INTO hashtags (tag_name) VALUES (?)', (tag_name,))
+        cursor.execute('INSERT INTO hashtags (tag_name, category_id) VALUES (?, ?)', (tag_name, category_id))
         conn.commit()
         success = True
     except sqlite3.IntegrityError:
         success = False
     finally:
         conn.close()
+    return success
+
+def update_hashtag_category(tag_name: str, category_id: int) -> bool:
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute('UPDATE hashtags SET category_id = ? WHERE tag_name = ?', (category_id, tag_name))
+    success = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
     return success
 
 def remove_hashtag(tag_name: str) -> bool:
