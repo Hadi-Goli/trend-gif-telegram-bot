@@ -373,19 +373,9 @@ def chunk_list(lst, n):
 
 def get_inline_keyboard(grouped_tags, selected_tags, prefix="tag"):
     keyboard = []
-    for cat_name, tags in grouped_tags.items():
-        # Category header (non-clickable)
-        keyboard.append([InlineKeyboardButton(f"━━━ {cat_name} ━━━", callback_data="ignore")])
-        
-        # Always use 3 columns as requested
-        chunk_size = 3
-        
-        for chunk in chunk_list(tags, chunk_size):
-            row = []
-            for tag in chunk:
-                display_text = f"✅ {tag}" if tag in selected_tags else tag
-                row.append(InlineKeyboardButton(display_text, callback_data=f"{prefix}|{tag}"))
-            keyboard.append(row)
+    
+    # User requested to hide the huge list of hashtags because it takes up too much screen space.
+    # The admin can type them manually.
             
     keyboard.append([
         InlineKeyboardButton("❌ لغو", callback_data="action|Cancel"),
@@ -395,14 +385,8 @@ def get_inline_keyboard(grouped_tags, selected_tags, prefix="tag"):
 
 def get_reply_keyboard(grouped_tags):
     keyboard = []
-    for cat_name, tags in grouped_tags.items():
-        keyboard.append([KeyboardButton(f"━━━ {cat_name} ━━━")])
-        
-        # Always use 3 columns as requested
-        chunk_size = 3
-        
-        for chunk in chunk_list(tags, chunk_size):
-            keyboard.append([KeyboardButton(tag) for tag in chunk])
+    
+    # Hide the hashtags here too
             
     keyboard.append([KeyboardButton("❌ لغو"), KeyboardButton("✅ تایید و نهایی کردن")])
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, selective=True)

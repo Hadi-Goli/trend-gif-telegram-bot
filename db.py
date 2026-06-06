@@ -24,6 +24,46 @@ def init_db():
         )
     ''')
     
+    # logs
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            admin_id INTEGER,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # submissions
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS submissions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            user_display_name TEXT,
+            file_id TEXT,
+            hashtags TEXT,
+            status TEXT DEFAULT 'pending',
+            claimed_by INTEGER,
+            submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # rate_limits
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS rate_limits (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # hashtags
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS hashtags (
+            tag_name TEXT PRIMARY KEY,
+            category_id INTEGER REFERENCES categories(id)
+        )
+    ''')
+    
     # 2. hashtags: columns (tag_name TEXT PRIMARY KEY, category_id INTEGER)
     # Check if category_id exists (for migration)
     cursor.execute("PRAGMA table_info(hashtags)")
