@@ -19,27 +19,18 @@ REVIEW_GROUP_ID = int(os.environ.get("REVIEW_GROUP_ID", 0))
 
 # ─── Keyboards ───────────────────────────────────────────────────
 
-def chunk_list(lst, n):
-    return [lst[i:i + n] for i in range(0, len(lst), n)]
-
-def _hashtag_keyboard(grouped_tags: dict, selected: set) -> InlineKeyboardMarkup:
+def _hashtag_keyboard(tags: list, selected: set) -> InlineKeyboardMarkup:
     """Build an inline hashtag toggle keyboard for the user."""
     keyboard = []
-    
-    for cat_name, tags in grouped_tags.items():
-        # Category header (non-clickable)
-        keyboard.append([InlineKeyboardButton(f"━━━ {cat_name} ━━━", callback_data="usub_ignore")])
-        
-        avg_len = sum(len(t) for t in tags) / len(tags) if tags else 0
-        chunk_size = 2 if avg_len > 15 else 3
-        
-        for chunk in chunk_list(tags, chunk_size):
-            row = []
-            for tag in chunk:
-                label = f"✅ {tag}" if tag in selected else tag
-                row.append(InlineKeyboardButton(label, callback_data=f"usub_tag|{tag}"))
+    row = []
+    for tag in tags:
+        label = f"✅ {tag}" if tag in selected else tag
+        row.append(InlineKeyboardButton(label, callback_data=f"usub_tag|{tag}"))
+        if len(row) == 2:
             keyboard.append(row)
-            
+            row = []
+    if row:
+        keyboard.append(row)
     keyboard.append([
         InlineKeyboardButton("❌ لغو", callback_data="usub_cancel"),
         InlineKeyboardButton("✅ تأیید و ادامه", callback_data="usub_tags_done"),
@@ -91,8 +82,8 @@ async def handle_submission_callback(update: Update, context: ContextTypes.DEFAU
     query = update.callback_query
     data = query.data
 
-    if data == "usub_ignore":
-        await query.answer()
+    if data == "usub_start":
+        await _start_submission(query, context)
     elif data.startswith("usub_tag|"):
         await _toggle_tag(query, context)
     elif data == "usub_tags_done":
@@ -169,13 +160,13 @@ async def handle_user_gif(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['sub_data'] = {'file_id': file_id, 'tags': set()}
     context.user_data['sub_state'] = 'selecting_tags'
 
-    grouped_tags = db.get_all_hashtags_grouped()
-    if not grouped_tags:
+    tags = db.get_all_hashtags()
+    if not tags:
         await msg.reply_text("⚠️ هنوز هشتگی تعریف نشده است. لطفاً بعداً تلاش کنید.")
         context.user_data['sub_state'] = None
         return
 
-    keyboard = _hashtag_keyboard(grouped_tags, set())
+    keyboard = _hashtag_keyboard(tags, set())
     await msg.reply_text("👇 هشتگ‌های مرتبط با این گیف را انتخاب کنید:", reply_markup=keyboard)
 
 
@@ -196,9 +187,9 @@ async def _toggle_tag(query, context):
     sub_data['tags'] = selected
 
     await query.answer()
-    grouped_tags = db.get_all_hashtags_grouped()
+    tags = db.get_all_hashtags()
     try:
-        await query.edit_message_reply_markup(reply_markup=_hashtag_keyboard(grouped_tags, selected))
+        await query.edit_message_reply_markup(reply_markup=_hashtag_keyboard(tags, selected))
     except Exception:
         pass
 

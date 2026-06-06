@@ -145,61 +145,17 @@ async def add_admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def add_tag_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        await update.message.reply_text("نحوه استفاده: /add_tag <هشتگ>\nمثال: /add_tag #خنده")
+        await update.message.reply_text("نحوه استفاده: /add_tag <هشتگ>")
         return
         
     tag = context.args[0]
     if not tag.startswith('#'):
         tag = '#' + tag
         
-    context.user_data['pending_add_tag'] = tag
-    
-    cats = db.get_categories()
-    if not cats:
-        await update.message.reply_text("❌ هیچ دسته‌بندی یافت نشد! ابتدا با /add_category یک دسته بسازید.")
-        return
-        
-    keyboard = []
-    for cat_id, cat_name in cats:
-        keyboard.append([InlineKeyboardButton(cat_name, callback_data=f"addtag_cat|{cat_id}")])
-    
-    await update.message.reply_text(f"👇 دسته‌بندی مربوط به هشتگ {tag} را انتخاب کنید:", reply_markup=InlineKeyboardMarkup(keyboard))
-
-async def add_category_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text("نحوه استفاده: /add_category <نام دسته‌بندی>\nمثال: /add_category 🎭 احساسات")
-        return
-        
-    name = " ".join(context.args)
-    if db.add_category(name):
-        await update.message.reply_text(f"✅ دسته‌بندی «{name}» اضافه شد.")
+    if db.add_hashtag(tag):
+        await update.message.reply_text(f"✅ هشتگ {tag} اضافه شد.")
     else:
-        await update.message.reply_text(f"⚠️ این دسته‌بندی از قبل وجود دارد.")
-
-async def remove_category_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text("نحوه استفاده: /remove_category <آیدی_دسته>")
-        return
-        
-    try:
-        cat_id = int(context.args[0])
-        if db.remove_category(cat_id):
-            await update.message.reply_text("✅ دسته‌بندی حذف شد.")
-        else:
-            await update.message.reply_text("❌ دسته‌بندی پیدا نشد.")
-    except ValueError:
-        await update.message.reply_text("❌ آیدی باید عدد باشد.")
-
-async def list_categories_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    cats = db.get_categories()
-    if not cats:
-        await update.message.reply_text("هیچ دسته‌بندی ثبت نشده است.")
-        return
-        
-    msg = "📋 <b>لیست دسته‌بندی‌ها:</b>\n\n"
-    for cat_id, name in cats:
-        msg += f"ID: <code>{cat_id}</code> - {name}\n"
-    await update.message.reply_text(msg, parse_mode='HTML')
+        await update.message.reply_text(f"⚠️ هشتگ {tag} تکراری است.")
 
 async def remove_tag_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
@@ -250,16 +206,14 @@ async def list_admins_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     await update.message.reply_text(msg, parse_mode='HTML')
 
 async def list_tags_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    grouped = db.get_all_hashtags_grouped()
-    if not grouped:
+    tags = db.get_all_hashtags()
+    if not tags:
         await update.message.reply_text("هیچ هشتگی ثبت نشده است.")
         return
     
     msg = "📝 <b>لیست هشتگ‌های فعلی:</b>\n\n"
-    for cat, tags in grouped.items():
-        msg += f"━━━ {html.escape(cat)} ━━━\n"
-        msg += " ".join(html.escape(t) for t in tags) + "\n\n"
-        
+    for tag in tags:
+        msg += f"▪️ {html.escape(tag)}\n"
     await update.message.reply_text(msg, parse_mode='HTML')
 
 async def report_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -324,44 +278,26 @@ async def process_video_task(file_id, hashtag, context, update_text_func, user_i
         if os.path.exists(output_path):
             os.remove(output_path)
 
-def chunk_list(lst, n):
-    return [lst[i:i + n] for i in range(0, len(lst), n)]
-
-def get_inline_keyboard(grouped_tags, selected_tags, prefix="tag"):
+def get_inline_keyboard(tags, selected_tags):
     keyboard = []
-    for cat_name, tags in grouped_tags.items():
-        # Category header (non-clickable)
-        keyboard.append([InlineKeyboardButton(f"━━━ {cat_name} ━━━", callback_data="ignore")])
-        
-        # Decide chunk size based on average tag length
-        # if tags are very long, use 2 columns, otherwise 3
-        avg_len = sum(len(t) for t in tags) / len(tags) if tags else 0
-        chunk_size = 2 if avg_len > 15 else 3
-        
-        for chunk in chunk_list(tags, chunk_size):
-            row = []
-            for tag in chunk:
-                display_text = f"✅ {tag}" if tag in selected_tags else tag
-                row.append(InlineKeyboardButton(display_text, callback_data=f"{prefix}|{tag}"))
+    row = []
+    for tag in tags:
+        display_text = f"✅ {tag}" if tag in selected_tags else tag
+        row.append(InlineKeyboardButton(display_text, callback_data=f"tag|{tag}"))
+        if len(row) == 2:
             keyboard.append(row)
-            
+            row = []
+    if row:
+        keyboard.append(row)
+        
     keyboard.append([
         InlineKeyboardButton("❌ لغو", callback_data="action|Cancel"),
         InlineKeyboardButton("✅ تأیید و ارسال", callback_data="action|Done")
     ])
     return InlineKeyboardMarkup(keyboard)
 
-def get_reply_keyboard(grouped_tags):
-    keyboard = []
-    for cat_name, tags in grouped_tags.items():
-        keyboard.append([KeyboardButton(f"━━━ {cat_name} ━━━")])
-        
-        avg_len = sum(len(t) for t in tags) / len(tags) if tags else 0
-        chunk_size = 2 if avg_len > 15 else 3
-        
-        for chunk in chunk_list(tags, chunk_size):
-            keyboard.append([KeyboardButton(tag) for tag in chunk])
-            
+def get_reply_keyboard(tags):
+    keyboard = [[KeyboardButton(tag)] for tag in tags]
     keyboard.append([KeyboardButton("❌ لغو"), KeyboardButton("✅ تأیید نهایی")])
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, selective=True)
 
@@ -395,13 +331,13 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'tags': set()
     }
 
-    grouped_tags = db.get_all_hashtags_grouped()
+    tags = db.get_all_hashtags()
     
     if KEYBOARD_MODE == "INLINE":
-        markup = get_inline_keyboard(grouped_tags, set())
+        markup = get_inline_keyboard(tags, set())
         await update.message.reply_text("👇 هشتگ‌های مرتبط با این ویدیو را انتخاب کنید:", reply_markup=markup)
     else:
-        markup = get_reply_keyboard(grouped_tags)
+        markup = get_reply_keyboard(tags)
         await update.message.reply_text("👇 هشتگ‌های مرتبط را انتخاب کرده و سپس «تأیید نهایی» را بزنید:", reply_markup=markup)
 
 async def handle_inline_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -414,24 +350,6 @@ async def handle_inline_button(update: Update, context: ContextTypes.DEFAULT_TYP
         return
         
     data = query.data
-    if data == "ignore":
-        await query.answer()
-        return
-        
-    if data.startswith("addtag_cat|"):
-        cat_id = int(data.split("|")[1])
-        tag = context.user_data.get('pending_add_tag')
-        if not tag:
-            await query.answer("⚠️ نشست منقضی شده.", show_alert=True)
-            return
-            
-        if db.add_hashtag(tag, cat_id):
-            await query.edit_message_text(f"✅ هشتگ {tag} با موفقیت در دسته‌بندی ذخیره شد.")
-        else:
-            await query.edit_message_text(f"⚠️ هشتگ {tag} از قبل وجود دارد.")
-        del context.user_data['pending_add_tag']
-        return
-        
     if not (data.startswith("tag|") or data.startswith("action|")):
         return
 
@@ -496,8 +414,9 @@ async def handle_inline_button(update: Update, context: ContextTypes.DEFAULT_TYP
             selected_tags.add(tag)
             
         await query.answer()
-        grouped_tags = db.get_all_hashtags_grouped()
-        markup = get_inline_keyboard(grouped_tags, selected_tags)
+        
+        tags = db.get_all_hashtags()
+        markup = get_inline_keyboard(tags, selected_tags)
         try:
             await query.edit_message_reply_markup(reply_markup=markup)
         except Exception:
@@ -609,12 +528,9 @@ def main():
     app.add_handler(CommandHandler("remove_admin", remove_admin_command, filters=owner_filter))
     app.add_handler(CommandHandler("add_tag", add_tag_command, filters=owner_filter))
     app.add_handler(CommandHandler("remove_tag", remove_tag_command, filters=owner_filter))
-    app.add_handler(CommandHandler("add_category", add_category_command, filters=owner_filter))
-    app.add_handler(CommandHandler("remove_category", remove_category_command, filters=owner_filter))
     
     # ── Admin Commands ──
     app.add_handler(CommandHandler("list_tags", list_tags_command, filters=admin_filter))
-    app.add_handler(CommandHandler("list_categories", list_categories_command, filters=admin_filter))
     app.add_handler(CommandHandler("list_admins", list_admins_command, filters=admin_filter))
     app.add_handler(CommandHandler("report", report_command, filters=admin_filter))
     app.add_handler(CommandHandler("pending", review.pending_command, filters=admin_filter))
@@ -627,8 +543,8 @@ def main():
     # ── Media Router Handlers ──
     app.add_handler(MessageHandler(filters.ANIMATION | filters.VIDEO, router_media))
     
-    # Admin inline button callbacks (tag|*, action|*, addtag_cat|*)
-    app.add_handler(CallbackQueryHandler(handle_inline_button, pattern=r"^(tag|action|addtag_cat)\|"))
+    # Admin inline button callbacks (tag|* and action|*)
+    app.add_handler(CallbackQueryHandler(handle_inline_button, pattern=r"^(tag|action)\|"))
     
     # ── Text Router Handlers ──
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, router_text))
