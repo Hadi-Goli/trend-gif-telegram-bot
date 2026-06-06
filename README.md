@@ -1,8 +1,10 @@
 <div align="center">
+  <img src="pic.jpg" width="150" height="150" style="border-radius: 50%; object-fit: cover; margin-bottom: 20px;" alt="Trend GIF Logo">
   <h1>🎬 Trend GIF Telegram Bot</h1>
   <p><strong>A fully automated, asynchronous Telegram bot with FFmpeg integration, community submissions, and CI/CD pipelines.</strong></p>
   
   [![Python](https://img.shields.io/badge/Python-3.11%2B-blue?logo=python&logoColor=white)](https://python.org)
+  [![SQLite](https://img.shields.io/badge/SQLite-Database-003B57?logo=sqlite&logoColor=white)](https://sqlite.org)
   [![Docker](https://img.shields.io/badge/Docker-Containerized-2496ED?logo=docker&logoColor=white)](https://docker.com)
   [![FFmpeg](https://img.shields.io/badge/FFmpeg-Media%20Engine-5G6438?logo=ffmpeg&logoColor=white)](https://ffmpeg.org)
   [![Telegram API](https://img.shields.io/badge/PTB-v20+-2CA5E0?logo=telegram&logoColor=white)](https://python-telegram-bot.org/)
