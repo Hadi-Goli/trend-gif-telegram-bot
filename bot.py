@@ -60,7 +60,11 @@ owner_filter = OwnerFilter()
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     if user_id == OWNER_ID or db.is_admin(user_id):
-        await update.message.reply_text("سلام ادمین! ربات با موفقیت در حال اجراست. 🚀")
+        reply_markup = ReplyKeyboardMarkup(
+            [["/pending", "/report"], ["/list_tags", "/help"]], 
+            resize_keyboard=True
+        )
+        await update.message.reply_text("سلام ادمین! ربات با موفقیت در حال اجراست. 🚀", reply_markup=reply_markup)
     else:
         # Public user — show submit button
         keyboard = InlineKeyboardMarkup([
@@ -437,7 +441,8 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if KEYBOARD_MODE == "INLINE":
         markup = get_inline_keyboard(grouped_tags, set())
-        await update.message.reply_text("👇 هشتگ‌های مرتبط با این ویدیو را انتخاب کنید:", reply_markup=markup)
+        msg = await update.message.reply_text("👇 هشتگ‌های مرتبط با این ویدیو را انتخاب کنید:", reply_markup=markup)
+        context.user_data['pending_media']['msg_id'] = msg.message_id
     else:
         markup = get_reply_keyboard(grouped_tags)
         await update.message.reply_text("👇 هشتگ‌های مرتبط را انتخاب کرده و سپس «تأیید نهایی» را بزنید:", reply_markup=markup)
@@ -542,17 +547,25 @@ async def handle_inline_button(update: Update, context: ContextTypes.DEFAULT_TYP
             pass
 
 async def handle_text_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if KEYBOARD_MODE == "INLINE":
-        return
-        
     pending_media = context.user_data.get('pending_media')
     if not pending_media:
         return
         
     text = update.message.text
+    if not text:
+        return
     
     if text == "Cancel" or text == "لغو" or text == "❌ لغو":
         await update.message.reply_text("🚫 عملیات لغو شد.", reply_markup=ReplyKeyboardRemove())
+        if KEYBOARD_MODE == "INLINE" and 'msg_id' in pending_media:
+            try:
+                await context.bot.edit_message_reply_markup(
+                    chat_id=update.message.chat_id, 
+                    message_id=pending_media['msg_id'], 
+                    reply_markup=None
+                )
+            except Exception:
+                pass
         del context.user_data['pending_media']
         return
         
@@ -563,6 +576,17 @@ async def handle_text_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
             
         file_id = pending_media['file_id']
+        
+        if KEYBOARD_MODE == "INLINE" and 'msg_id' in pending_media:
+            try:
+                await context.bot.edit_message_reply_markup(
+                    chat_id=update.message.chat_id, 
+                    message_id=pending_media['msg_id'], 
+                    reply_markup=None
+                )
+            except Exception:
+                pass
+                
         del context.user_data['pending_media']
         final_hashtags = " ".join(selected_tags)
         
@@ -579,6 +603,9 @@ async def handle_text_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await process_video_task(file_id, final_hashtags, context, update_text, update.message.from_user.id)
         return
         
+    if not text.startswith('#') and not text.startswith('/'):
+        text = '#' + text
+        
     if db.valid_hashtag(text):
         if text in pending_media['tags']:
             pending_media['tags'].remove(text)
@@ -587,10 +614,27 @@ async def handle_text_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pending_media['tags'].add(text)
             action_text = "اضافه شد"
             
-        current_tags = " ".join(pending_media['tags']) if pending_media['tags'] else "(هیچ)"
-        await update.message.reply_text(f"✔️ هشتگ {text} {action_text}.\n\nهشتگ‌های فعلی: {current_tags}\n\nهشتگ دیگری انتخاب کنید یا «✅ تایید و نهایی کردن» را بزنید.")
+        if KEYBOARD_MODE == "INLINE" and 'msg_id' in pending_media:
+            try:
+                await update.message.delete()
+            except Exception:
+                pass
+            grouped_tags = db.get_all_hashtags_grouped()
+            markup = get_inline_keyboard(grouped_tags, pending_media['tags'])
+            try:
+                await context.bot.edit_message_reply_markup(
+                    chat_id=update.message.chat_id,
+                    message_id=pending_media['msg_id'],
+                    reply_markup=markup
+                )
+            except Exception:
+                pass
+        else:
+            current_tags = " ".join(pending_media['tags']) if pending_media['tags'] else "(هیچ)"
+            await update.message.reply_text(f"✔️ هشتگ {text} {action_text}.\n\nهشتگ‌های فعلی: {current_tags}\n\nهشتگ دیگری انتخاب کنید یا «✅ تایید و نهایی کردن» را بزنید.")
     else:
-        await update.message.reply_text("❌ هشتگ نامعتبر است.")
+        if KEYBOARD_MODE == "REPLY":
+            await update.message.reply_text("❌ هشتگ نامعتبر است.")
 
 
 # ─── Routing ──────────────────────────────────────────────────────
