@@ -301,8 +301,16 @@ def get_reply_keyboard(tags):
     keyboard.append([KeyboardButton("❌ لغو"), KeyboardButton("✅ تأیید نهایی")])
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, selective=True)
 
-# Media Handling
+# Media Handling (Admin-only — direct publish to channel)
 async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Defensive permission check (safety net beyond the filter)
+    user_id = update.message.from_user.id if update.message.from_user else None
+    if user_id != OWNER_ID and not db.is_admin(user_id):
+        logger.warning(f"handle_media called by non-admin user {user_id} — rejecting. This should not happen.")
+        return
+
+    logger.info(f"Admin media handler triggered by user {user_id}")
+
     # Extract file_id to store in user_data
     original_message = update.message
     file_id = None

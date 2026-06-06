@@ -39,6 +39,7 @@ jobs:
             echo "OWNER_ID=${{ secrets.OWNER_ID }}" >> .env
             echo "CHANNEL_USERNAME=${{ secrets.CHANNEL_USERNAME }}" >> .env
             echo "KEYBOARD_MODE=${{ secrets.KEYBOARD_MODE }}" >> .env
+            echo "REVIEW_GROUP_ID=${{ secrets.REVIEW_GROUP_ID }}" >> .env
             
             # Rebuild and restart the container
             docker compose down

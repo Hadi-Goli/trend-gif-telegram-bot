@@ -119,6 +119,9 @@ async def _start_submission(query, context):
 
 async def handle_user_gif(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Non-admin user sent a GIF/video in private chat."""
+    user_id = update.message.from_user.id if update.message.from_user else None
+    logger.info(f"Community media handler triggered by user {user_id}")
+
     state = context.user_data.get('sub_state')
 
     if state != 'awaiting_gif':
