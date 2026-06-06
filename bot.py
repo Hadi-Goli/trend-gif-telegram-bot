@@ -39,14 +39,14 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Custom filters
-class AdminFilter(filters.BaseFilter):
+class AdminFilter(filters.MessageFilter):
     def filter(self, message):
         user_id = message.from_user.id if message.from_user else None
         if user_id == OWNER_ID:
             return True
         return db.is_admin(user_id)
 
-class OwnerFilter(filters.BaseFilter):
+class OwnerFilter(filters.MessageFilter):
     def filter(self, message):
         user_id = message.from_user.id if message.from_user else None
         return user_id == OWNER_ID
@@ -85,18 +85,18 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if is_owner:
         help_text += "👑 **دستورات مدیریت کل (Owner):**\n"
-        help_text += "🔹 `/start` - بررسی وضعیت ربات\n"
-        help_text += "🔹 `/add_admin <user_id>` - افزودن ادمین جدید\n"
-        help_text += "🔹 `/remove_admin <user_id>` - حذف ادمین\n"
-        help_text += "🔹 `/add_tag <hashtag>` - افزودن هشتگ جدید به لیست\n"
-        help_text += "🔹 `/remove_tag <hashtag>` - حذف هشتگ از لیست\n\n"
+        help_text += "🔹 /start - بررسی وضعیت ربات\n"
+        help_text += "🔹 /add_admin <user_id> - افزودن ادمین جدید\n"
+        help_text += "🔹 /remove_admin <user_id> - حذف ادمین\n"
+        help_text += "🔹 /add_tag <hashtag> - افزودن هشتگ جدید به لیست\n"
+        help_text += "🔹 /remove_tag <hashtag> - حذف هشتگ از لیست\n\n"
         
     if is_owner or is_admin:
         help_text += "👥 **راهنمای استفاده (Admins):**\n"
-        help_text += "🔹 `/list_tags` - مشاهده لیست هشتگ‌های فعلی\n"
-        help_text += "🔹 `/list_admins` - مشاهده لیست ادمین‌ها\n"
-        help_text += "🔹 `/report` - دریافت گزارش فعالیت\n"
-        help_text += "🔹 `/pending` - تعداد گیف‌های در انتظار بررسی\n"
+        help_text += "🔹 /list_tags - مشاهده لیست هشتگ‌های فعلی\n"
+        help_text += "🔹 /list_admins - مشاهده لیست ادمین‌ها\n"
+        help_text += "🔹 /report - دریافت گزارش فعالیت\n"
+        help_text += "🔹 /pending - تعداد گیف‌های در انتظار بررسی\n"
         help_text += "\n🎥 **نحوه ارسال پست:**\n"
         help_text += "۱. یک فایل **ویدیو** یا **گیف (Animation)** برای ربات ارسال کنید.\n"
         if KEYBOARD_MODE == "INLINE":
@@ -122,7 +122,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         help_text += "۳. هشتگ‌های مرتبط را انتخاب کنید.\n"
         help_text += "۴. نام خود را تأیید یا تغییر دهید.\n"
         help_text += "۵. گیف شما پس از بررسی ادمین‌ها در کانال منتشر خواهد شد.\n\n"
-        help_text += "❌ برای لغو: `/cancel`"
+        help_text += "❌ برای لغو: /cancel"
         
     await update.message.reply_text(help_text, parse_mode='Markdown')
 
@@ -130,6 +130,10 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ─── Owner-only Commands ─────────────────────────────────────────
 
 async def add_admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id if update.message.from_user else None
+    if user_id != OWNER_ID:
+        return
+        
     if not context.args:
         await update.message.reply_text("نحوه استفاده: /add_admin <آیدی_عددی>")
         return
@@ -144,6 +148,10 @@ async def add_admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ آیدی باید عدد باشد.")
 
 async def add_tag_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id if update.message.from_user else None
+    if user_id != OWNER_ID:
+        return
+        
     if not context.args:
         await update.message.reply_text("نحوه استفاده: /add_tag <هشتگ>\nمثال: /add_tag #خنده")
         return
@@ -166,6 +174,10 @@ async def add_tag_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"👇 دسته‌بندی مربوط به هشتگ {tag} را انتخاب کنید:", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def add_category_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id if update.message.from_user else None
+    if user_id != OWNER_ID:
+        return
+        
     if not context.args:
         await update.message.reply_text("نحوه استفاده: /add_category <نام دسته‌بندی>\nمثال: /add_category 🎭 احساسات")
         return
@@ -177,6 +189,10 @@ async def add_category_command(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text(f"⚠️ این دسته‌بندی از قبل وجود دارد.")
 
 async def remove_category_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id if update.message.from_user else None
+    if user_id != OWNER_ID:
+        return
+        
     if not context.args:
         await update.message.reply_text("نحوه استفاده: /remove_category <آیدی_دسته>")
         return
@@ -191,6 +207,10 @@ async def remove_category_command(update: Update, context: ContextTypes.DEFAULT_
         await update.message.reply_text("❌ آیدی باید عدد باشد.")
 
 async def list_categories_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id if update.message.from_user else None
+    if user_id != OWNER_ID and not db.is_admin(user_id):
+        return
+        
     cats = db.get_categories()
     if not cats:
         await update.message.reply_text("هیچ دسته‌بندی ثبت نشده است.")
@@ -202,6 +222,10 @@ async def list_categories_command(update: Update, context: ContextTypes.DEFAULT_
     await update.message.reply_text(msg, parse_mode='HTML')
 
 async def remove_tag_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id if update.message.from_user else None
+    if user_id != OWNER_ID:
+        return
+        
     if not context.args:
         await update.message.reply_text("نحوه استفاده: /remove_tag <هشتگ>")
         return
@@ -216,6 +240,10 @@ async def remove_tag_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.message.reply_text(f"⚠️ هشتگ {tag} پیدا نشد.")
 
 async def remove_admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id if update.message.from_user else None
+    if user_id != OWNER_ID:
+        return
+        
     if not context.args:
         await update.message.reply_text("نحوه استفاده: /remove_admin <آیدی_عددی>")
         return
@@ -230,6 +258,10 @@ async def remove_admin_command(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text("❌ آیدی باید عدد باشد.")
 
 async def list_admins_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id if update.message.from_user else None
+    if user_id != OWNER_ID and not db.is_admin(user_id):
+        return
+        
     admins = db.get_all_admins()
     if not admins:
         await update.message.reply_text("هیچ ادمینی (به جز شما) ثبت نشده است.")
@@ -250,6 +282,10 @@ async def list_admins_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     await update.message.reply_text(msg, parse_mode='HTML')
 
 async def list_tags_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id if update.message.from_user else None
+    if user_id != OWNER_ID and not db.is_admin(user_id):
+        return
+        
     grouped = db.get_all_hashtags_grouped()
     if not grouped:
         await update.message.reply_text("هیچ هشتگی ثبت نشده است.")
@@ -263,6 +299,10 @@ async def list_tags_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(msg, parse_mode='HTML')
 
 async def report_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id if update.message.from_user else None
+    if user_id != OWNER_ID and not db.is_admin(user_id):
+        return
+        
     results = db.get_report_data()
     if not results:
         await update.message.reply_text("در این ماه پستی ارسال نشده است.")

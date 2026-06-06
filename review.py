@@ -400,5 +400,15 @@ async def _edit_tags_discard(query, context):
 # ─── Admin command: view pending count ────────────────────────────
 
 async def pending_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id if update.message.from_user else None
+    
+    # We must import db, OWNER_ID from os.environ or something. 
+    # Actually, review.py doesn't have OWNER_ID.
+    # Let me check if OWNER_ID is in review.py. No, it's not.
+    # I can just use db.is_admin(user_id) or check OWNER_ID from os.environ.
+    OWNER_ID = int(os.environ.get("OWNER_ID", 276868456))
+    if user_id != OWNER_ID and not db.is_admin(user_id):
+        return
+        
     count = db.count_pending_submissions()
     await update.message.reply_text(f"📬 تعداد گیف‌های در انتظار بررسی: <b>{count}</b>", parse_mode='HTML')
