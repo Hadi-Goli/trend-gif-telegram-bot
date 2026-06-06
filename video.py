@@ -10,20 +10,22 @@ async def watermark_video(input_path: str, output_path: str, channel_username: s
     Downloads and watermarks a video using FFmpeg.
     Runs asynchronously using asyncio.create_subprocess_exec.
     """
-    font_file = 'Roboto-Bold.ttf'
-    if not os.path.exists(font_file):
-        logger.warning(f"Font file {font_file} not found. Watermark might fallback to default font.")
+    watermark_file = '005.png'
+    if not os.path.exists(watermark_file):
+        logger.error(f"Watermark file {watermark_file} not found.")
+        # Fallback to simple copy if watermark is missing, or return False
+        return False
 
     # FFmpeg command to overlay watermark at bottom right
-    # -vf "drawtext=fontfile='Roboto-Bold.ttf':text='@trend_gif':fontcolor=white:fontsize=18:x=w-tw-10:y=h-th-10:shadowcolor=black@0.8:shadowx=2:shadowy=2"
-    # -c:v libx264 -pix_fmt yuv420p -an -y {output_path}
-    
-    vf_arg = f"drawtext=fontfile='{font_file}':text='{channel_username}':fontcolor=white:fontsize=18:x=w-tw-10:y=h-th-10:shadowcolor=black@0.8:shadowx=2:shadowy=2"
+    # [1:v][0:v]scale2ref=w='iw*0.05':h='ow/mdar'[wm][vid] scales the watermark to 5% of the video width
+    # [vid][wm]overlay=W-w-10:H-h-10 overlays it 10px from the bottom right
+    filter_complex = "[1:v][0:v]scale2ref=w='iw*0.05':h='ow/mdar'[wm][vid];[vid][wm]overlay=W-w-10:H-h-10"
     
     cmd = [
         'ffmpeg',
         '-i', input_path,
-        '-vf', vf_arg,
+        '-i', watermark_file,
+        '-filter_complex', filter_complex,
         '-c:v', 'libx264',
         '-pix_fmt', 'yuv420p',
         '-an', # Remove audio
