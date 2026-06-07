@@ -15,7 +15,7 @@ Callback patterns handled:
 import logging
 import os
 
-from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, Bot
 from telegram.ext import ContextTypes
 
 import db
@@ -193,12 +193,23 @@ async def _approve(query, context):
         success = await video.watermark_video(input_path, output_path, CHANNEL_USERNAME)
 
         if success:
+            admin_id = query.from_user.id
+            admin_token = os.environ.get(f"ADMIN_BOT_{admin_id}")
+            
             with open(output_path, 'rb') as f:
-                channel_msg = await context.bot.send_animation(
-                    chat_id=CHANNEL_USERNAME,
-                    animation=f,
-                    caption=caption,
-                )
+                if admin_token:
+                    async with Bot(token=admin_token) as proxy_bot:
+                        channel_msg = await proxy_bot.send_animation(
+                            chat_id=CHANNEL_USERNAME,
+                            animation=f,
+                            caption=caption,
+                        )
+                else:
+                    channel_msg = await context.bot.send_animation(
+                        chat_id=CHANNEL_USERNAME,
+                        animation=f,
+                        caption=caption,
+                    )
 
             db.approve_submission(sub_id)
             db.log_post(query.from_user.id)

@@ -2,7 +2,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 import os
 import html
-from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, Bot
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
@@ -347,12 +347,22 @@ async def process_video_task(file_id, hashtag, context, update_text_func, user_i
         
         if success:
             # Send to channel as ANIMATION (GIF)
+            admin_token = os.environ.get(f"ADMIN_BOT_{user_id}")
+            
             with open(output_path, 'rb') as f:
-                await context.bot.send_animation(
-                    chat_id=CHANNEL_USERNAME,
-                    animation=f,
-                    caption=hashtag
-                )
+                if admin_token:
+                    async with Bot(token=admin_token) as proxy_bot:
+                        await proxy_bot.send_animation(
+                            chat_id=CHANNEL_USERNAME,
+                            animation=f,
+                            caption=hashtag
+                        )
+                else:
+                    await context.bot.send_animation(
+                        chat_id=CHANNEL_USERNAME,
+                        animation=f,
+                        caption=hashtag
+                    )
             
             # Log successful post
             db.log_post(user_id)
