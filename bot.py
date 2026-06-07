@@ -87,24 +87,24 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_owner = (user_id == OWNER_ID)
     is_admin = db.is_admin(user_id)
     
-    help_text = "🤖 **راهنمای ربات واترمارک Trend GIF**\n\n"
+    help_text = "🤖 <b>راهنمای ربات واترمارک Trend GIF</b>\n\n"
     
     if is_owner:
-        help_text += "👑 **دستورات مدیریت کل (Owner):**\n"
+        help_text += "👑 <b>دستورات مدیریت کل (Owner):</b>\n"
         help_text += "🔹 /start - بررسی وضعیت ربات\n"
-        help_text += "🔹 /add\_admin <user_id> - افزودن ادمین جدید\n"
-        help_text += "🔹 /remove\_\admin <user_id> - حذف ادمین\n"
-        help_text += "🔹 /add\_\tag <hashtag> - افزودن هشتگ جدید به لیست\n"
-        help_text += "🔹 /remove\_\tag <hashtag> - حذف هشتگ از لیست\n\n"
+        help_text += "🔹 /add_admin &lt;user_id&gt; - افزودن ادمین جدید\n"
+        help_text += "🔹 /remove_admin &lt;user_id&gt; - حذف ادمین\n"
+        help_text += "🔹 /add_tag &lt;hashtag&gt; - افزودن هشتگ جدید به لیست\n"
+        help_text += "🔹 /remove_tag &lt;hashtag&gt; - حذف هشتگ از لیست\n\n"
         
     if is_owner or is_admin:
-        help_text += "👥 **راهنمای استفاده (Admins):**\n"
-        help_text += "🔹 /list\_\tags - مشاهده لیست هشتگ‌های فعلی\n"
-        help_text += "🔹 /list\_\admins - مشاهده لیست ادمین‌ها\n"
+        help_text += "👥 <b>راهنمای استفاده (Admins):</b>\n"
+        help_text += "🔹 /list_tags - مشاهده لیست هشتگ‌های فعلی\n"
+        help_text += "🔹 /list_admins - مشاهده لیست ادمین‌ها\n"
         help_text += "🔹 /report - دریافت گزارش فعالیت\n"
         help_text += "🔹 /pending - تعداد گیف‌های در انتظار بررسی\n"
-        help_text += "\n🎥 **نحوه ارسال پست:**\n"
-        help_text += "۱. یک فایل **ویدیو** یا **گیف (Animation)** برای ربات ارسال کنید.\n"
+        help_text += "\n🎥 <b>نحوه ارسال پست:</b>\n"
+        help_text += "۱. یک فایل <b>ویدیو</b> یا <b>گیف (Animation)</b> برای ربات ارسال کنید.\n"
         if KEYBOARD_MODE == "INLINE":
             help_text += "۲. ربات در زیر همان پیام دکمه‌های شیشه‌ای شامل هشتگ‌های مجاز به شما نمایش می‌دهد.\n"
             help_text += "۳. کافیست روی یکی از دکمه‌ها کلیک کنید.\n"
@@ -116,12 +116,12 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             help_text += "۴. ربات به طور خودکار واترمارک کانال را روی ویدیو قرار داده و آن را در کانال منتشر می‌کند.\n\n"
             help_text += "❌ برای لغو عملیات روی دکمه Cancel در کیبورد کلیک کنید یا آن را تایپ کنید."
 
-        help_text += "\n\n📬 **بررسی گیف‌های ارسالی کاربران:**\n"
+        help_text += "\n\n📬 <b>بررسی گیف‌های ارسالی کاربران:</b>\n"
         help_text += "گیف‌های ارسالی کاربران در گروه بررسی ظاهر می‌شوند.\n"
         help_text += "🔹 ابتدا «🔒 رسیدگی می‌کنم» را بزنید تا قفل شود.\n"
         help_text += "🔹 سپس می‌توانید هشتگ‌ها را ویرایش، تأیید یا رد کنید.\n"
     else:
-        help_text += "📤 **ارسال گیف برای کانال:**\n"
+        help_text += "📤 <b>ارسال گیف برای کانال:</b>\n"
         help_text += "شما می‌توانید گیف‌های خود را برای انتشار در کانال ارسال کنید.\n"
         help_text += "۱. روی دکمه «📤 ارسال گیف» کلیک کنید.\n"
         help_text += "۲. گیف یا ویدیوی خود را ارسال کنید.\n"
@@ -130,7 +130,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         help_text += "۵. گیف شما پس از بررسی ادمین‌ها در کانال منتشر خواهد شد.\n\n"
         help_text += "❌ برای لغو: /cancel"
         
-    await update.message.reply_text(help_text, parse_mode='Markdown')
+    await update.message.reply_text(help_text, parse_mode='HTML')
 
 
 # ─── Owner-only Commands ─────────────────────────────────────────
