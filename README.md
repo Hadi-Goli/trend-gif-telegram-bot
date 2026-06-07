@@ -35,6 +35,7 @@ This project serves as a showcase of modern Python backend development, DevOps p
 *   **Dockerized Environment**: The bot and all its complex system dependencies (like FFmpeg) are encapsulated in a lightweight container, ensuring complete environment parity.
 *   **Persistent Logging**: Integrates Python's `RotatingFileHandler` mapped securely to Docker volumes, enabling historical debugging without infinite disk consumption.
 *   **State Management without FSM**: Clever use of Telegram's `ForceReply` and `context.user_data` mapping to track active video processing sessions seamlessly.
+*   **Admin-Specific Proxy Bots**: Admins can bind their personal Telegram Bot tokens to the system. The main bot will act as a proxy, sending the final animation to the channel using the admin's specific bot to simulate a "signature".
 *   **Strict Access Control**: Granular permission layers ensuring only the `OWNER_ID` or registered `admins` in the local SQLite database can trigger admin commands.
 
 ## 🛠️ Tech Stack & Architecture

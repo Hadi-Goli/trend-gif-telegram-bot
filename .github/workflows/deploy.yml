@@ -14,6 +14,21 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Generate .env file dynamically
+        env:
+          SECRETS_JSON: ${{ toJson(secrets) }}
+        run: |
+          echo "BOT_TOKEN=${{ secrets.BOT_TOKEN }}" > .env
+          echo "IP_ADDRESS=${{ secrets.SERVER_IP }}" >> .env
+          echo "PORT=8443" >> .env
+          echo "OWNER_ID=${{ secrets.OWNER_ID }}" >> .env
+          echo "CHANNEL_USERNAME=${{ secrets.CHANNEL_USERNAME }}" >> .env
+          echo "KEYBOARD_MODE=${{ secrets.KEYBOARD_MODE }}" >> .env
+          echo "REVIEW_GROUP_ID=${{ secrets.REVIEW_GROUP_ID }}" >> .env
+          
+          # Add all Admin-Specific Proxy Bots automatically
+          echo "$SECRETS_JSON" | jq -r 'to_entries | .[] | select(.key | startswith("ADMIN_BOT_")) | "\(.key)=\(.value)"' >> .env
+
       - name: Copy files to Server via SCP
         uses: appleboy/scp-action@master
         with:
@@ -31,15 +46,6 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd /root/telegram_bot
-            
-            # Recreate the .env file dynamically to keep secrets safe
-            echo "BOT_TOKEN=${{ secrets.BOT_TOKEN }}" > .env
-            echo "IP_ADDRESS=${{ secrets.SERVER_IP }}" >> .env
-            echo "PORT=8443" >> .env
-            echo "OWNER_ID=${{ secrets.OWNER_ID }}" >> .env
-            echo "CHANNEL_USERNAME=${{ secrets.CHANNEL_USERNAME }}" >> .env
-            echo "KEYBOARD_MODE=${{ secrets.KEYBOARD_MODE }}" >> .env
-            echo "REVIEW_GROUP_ID=${{ secrets.REVIEW_GROUP_ID }}" >> .env
             
             # Rebuild and restart the container
             docker compose down
