@@ -181,7 +181,7 @@ async def _approve(query, context):
     file_id = submission['file_id']
     tags_str = " ".join(submission['hashtags'])
     credit = submission['user_display_name']
-    caption = f"{tags_str}\n\nارسالی از: {credit}"
+    caption = f"{tags_str}\n\n• {credit}"
 
     input_path = f"input_sub_{sub_id}.mp4"
     output_path = f"output_sub_{sub_id}.mp4"
