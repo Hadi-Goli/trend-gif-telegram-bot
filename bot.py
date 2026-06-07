@@ -92,15 +92,15 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_owner:
         help_text += "👑 **دستورات مدیریت کل (Owner):**\n"
         help_text += "🔹 /start - بررسی وضعیت ربات\n"
-        help_text += "🔹 /add_admin <user_id> - افزودن ادمین جدید\n"
-        help_text += "🔹 /remove_admin <user_id> - حذف ادمین\n"
-        help_text += "🔹 /add_tag <hashtag> - افزودن هشتگ جدید به لیست\n"
-        help_text += "🔹 /remove_tag <hashtag> - حذف هشتگ از لیست\n\n"
+        help_text += "🔹 /add\_admin <user_id> - افزودن ادمین جدید\n"
+        help_text += "🔹 /remove\_admin <user_id> - حذف ادمین\n"
+        help_text += "🔹 /add\_tag <hashtag> - افزودن هشتگ جدید به لیست\n"
+        help_text += "🔹 /remove\_tag <hashtag> - حذف هشتگ از لیست\n\n"
         
     if is_owner or is_admin:
         help_text += "👥 **راهنمای استفاده (Admins):**\n"
-        help_text += "🔹 /list_tags - مشاهده لیست هشتگ‌های فعلی\n"
-        help_text += "🔹 /list_admins - مشاهده لیست ادمین‌ها\n"
+        help_text += "🔹 /list\_tags - مشاهده لیست هشتگ‌های فعلی\n"
+        help_text += "🔹 /list\_admins - مشاهده لیست ادمین‌ها\n"
         help_text += "🔹 /report - دریافت گزارش فعالیت\n"
         help_text += "🔹 /pending - تعداد گیف‌های در انتظار بررسی\n"
         help_text += "\n🎥 **نحوه ارسال پست:**\n"
