@@ -19,7 +19,7 @@ async def watermark_video(input_path: str, output_path: str, channel_username: s
     # FFmpeg command to overlay watermark at bottom right
     # [1:v][0:v]scale2ref=w='iw*0.05':h='ow/mdar'[wm][vid] scales the watermark to 5% of the video width
     # [vid][wm]overlay=W-w-10:H-h-10 overlays it 10px from the bottom right
-    filter_complex = "[1:v][0:v]scale2ref=w='iw*0.15':h='ow/mdar'[wm][vid];[vid][wm]overlay=W-w-10:H-h-10"
+    filter_complex = "[1:v][0:v]scale2ref=w='iw*0.13':h='ow/mdar'[wm][vid];[vid][wm]overlay=W-w-10:H-h-10"
     
     cmd = [
         'ffmpeg',
