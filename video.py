@@ -10,7 +10,7 @@ async def watermark_video(input_path: str, output_path: str, channel_username: s
     Downloads and watermarks a video using FFmpeg.
     Runs asynchronously using asyncio.create_subprocess_exec.
     """
-    watermark_file = '005.png'
+    watermark_file = '006.png'
     if not os.path.exists(watermark_file):
         logger.error(f"Watermark file {watermark_file} not found.")
         # Fallback to simple copy if watermark is missing, or return False
