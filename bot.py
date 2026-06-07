@@ -57,14 +57,16 @@ owner_filter = OwnerFilter()
 
 # ─── Public & Admin Commands ─────────────────────────────────────
 
+def get_admin_shortcuts():
+    return ReplyKeyboardMarkup(
+        [["/pending", "/report"], ["/list_tags", "/help"]], 
+        resize_keyboard=True
+    )
+
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     if user_id == OWNER_ID or db.is_admin(user_id):
-        reply_markup = ReplyKeyboardMarkup(
-            [["/pending", "/report"], ["/list_tags", "/help"]], 
-            resize_keyboard=True
-        )
-        await update.message.reply_text("سلام ادمین! ربات با موفقیت در حال اجراست. 🚀", reply_markup=reply_markup)
+        await update.message.reply_text("سلام ادمین! ربات با موفقیت در حال اجراست. 🚀", reply_markup=get_admin_shortcuts())
     else:
         # Public user — show submit button
         keyboard = InlineKeyboardMarkup([
@@ -374,8 +376,19 @@ def chunk_list(lst, n):
 def get_inline_keyboard(grouped_tags, selected_tags, prefix="tag"):
     keyboard = []
     
-    # User requested to hide the huge list of hashtags because it takes up too much screen space.
-    # The admin can type them manually.
+    for cat_name, tags in grouped_tags.items():
+        # Category header (non-clickable)
+        keyboard.append([InlineKeyboardButton(f"━━━ {cat_name} ━━━", callback_data="ignore")])
+        
+        # Always use 3 columns as requested
+        chunk_size = 3
+        
+        for chunk in chunk_list(tags, chunk_size):
+            row = []
+            for tag in chunk:
+                display_text = f"✅ {tag}" if tag in selected_tags else tag
+                row.append(InlineKeyboardButton(display_text, callback_data=f"{prefix}|{tag}"))
+            keyboard.append(row)
             
     keyboard.append([
         InlineKeyboardButton("❌ لغو", callback_data="action|Cancel"),
@@ -385,8 +398,14 @@ def get_inline_keyboard(grouped_tags, selected_tags, prefix="tag"):
 
 def get_reply_keyboard(grouped_tags):
     keyboard = []
-    
-    # Hide the hashtags here too
+    for cat_name, tags in grouped_tags.items():
+        keyboard.append([KeyboardButton(f"━━━ {cat_name} ━━━")])
+        
+        # Always use 3 columns as requested
+        chunk_size = 3
+        
+        for chunk in chunk_list(tags, chunk_size):
+            keyboard.append([KeyboardButton(tag) for tag in chunk])
             
     keyboard.append([KeyboardButton("❌ لغو"), KeyboardButton("✅ تایید و نهایی کردن")])
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, selective=True)
@@ -424,6 +443,13 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
     grouped_tags = db.get_all_hashtags_grouped()
     
     if KEYBOARD_MODE == "INLINE":
+        # Remove the bottom shortcuts temporarily to save screen space
+        try:
+            temp_msg = await update.message.reply_text("⏳", reply_markup=ReplyKeyboardRemove())
+            await temp_msg.delete()
+        except Exception:
+            pass
+            
         markup = get_inline_keyboard(grouped_tags, set())
         msg = await update.message.reply_text("👇 هشتگ‌های مرتبط با این ویدیو را انتخاب کنید:", reply_markup=markup)
         context.user_data['pending_media']['msg_id'] = msg.message_id
@@ -483,6 +509,11 @@ async def handle_inline_button(update: Update, context: ContextTypes.DEFAULT_TYP
             except Exception:
                 pass
             del context.user_data['pending_media']
+            # Restore admin shortcuts
+            try:
+                await context.bot.send_message(chat_id=user_id, text="بازگشت به منوی اصلی.", reply_markup=get_admin_shortcuts())
+            except Exception:
+                pass
             return
         elif action == "Done":
             if not selected_tags:
@@ -499,6 +530,12 @@ async def handle_inline_button(update: Update, context: ContextTypes.DEFAULT_TYP
                 except Exception:
                     pass
             await process_video_task(file_id, final_hashtags, context, update_text, user_id)
+            
+            # Restore admin shortcuts after publishing
+            try:
+                await context.bot.send_message(chat_id=user_id, text="بازگشت به منوی اصلی.", reply_markup=get_admin_shortcuts())
+            except Exception:
+                pass
             return
 
     if data.startswith("tag|"):
@@ -540,7 +577,7 @@ async def handle_text_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     if text == "Cancel" or text == "لغو" or text == "❌ لغو":
-        await update.message.reply_text("🚫 عملیات لغو شد.", reply_markup=ReplyKeyboardRemove())
+        await update.message.reply_text("🚫 عملیات لغو شد.", reply_markup=get_admin_shortcuts())
         if KEYBOARD_MODE == "INLINE" and 'msg_id' in pending_media:
             try:
                 await context.bot.edit_message_reply_markup(
@@ -574,7 +611,7 @@ async def handle_text_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
         del context.user_data['pending_media']
         final_hashtags = " ".join(selected_tags)
         
-        status_msg = await update.message.reply_text("⏳ در حال دانلود و پردازش ویدیو...", reply_markup=ReplyKeyboardRemove())
+        status_msg = await update.message.reply_text("⏳ در حال دانلود و پردازش ویدیو...", reply_markup=get_admin_shortcuts())
         
         async def update_text(msg):
             if msg == "⏳ در حال دانلود و پردازش ویدیو...":
