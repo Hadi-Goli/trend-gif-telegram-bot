@@ -147,7 +147,8 @@ async def add_admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
         
     if not context.args:
-        await update.message.reply_text("نحوه استفاده: /add_admin <آیدی_عددی>")
+        context.user_data['admin_action'] = 'add_admin'
+        await update.message.reply_text("👤 لطفاً آیدی عددی ادمین جدید را بفرستید:\n\nبرای لغو /cancel را ارسال کنید.")
         return
     
     try:
@@ -165,7 +166,8 @@ async def add_tag_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
         
     if not context.args:
-        await update.message.reply_text("نحوه استفاده: /add_tag <هشتگ>\nمثال: /add_tag #خنده")
+        context.user_data['admin_action'] = 'add_tag'
+        await update.message.reply_text("🏷 لطفاً هشتگی که می‌خواهید اضافه کنید را بفرستید (مثال: #خنده):\n\nبرای لغو /cancel را ارسال کنید.")
         return
         
     tag = context.args[0]
@@ -191,7 +193,8 @@ async def add_category_command(update: Update, context: ContextTypes.DEFAULT_TYP
         return
         
     if not context.args:
-        await update.message.reply_text("نحوه استفاده: /add_category <نام دسته‌بندی>\nمثال: /add_category 🎭 احساسات")
+        context.user_data['admin_action'] = 'add_category'
+        await update.message.reply_text("📂 لطفاً نام دسته‌بندی جدید را بفرستید (مثال: 🎭 احساسات):\n\nبرای لغو /cancel را ارسال کنید.")
         return
         
     name = " ".join(context.args)
@@ -206,7 +209,8 @@ async def remove_category_command(update: Update, context: ContextTypes.DEFAULT_
         return
         
     if not context.args:
-        await update.message.reply_text("نحوه استفاده: /remove_category <آیدی_دسته>")
+        context.user_data['admin_action'] = 'remove_category'
+        await update.message.reply_text("🗑 لطفاً آیدی دسته‌بندی که می‌خواهید حذف کنید را بفرستید:\n\nبرای لغو /cancel را ارسال کنید.")
         return
         
     try:
@@ -239,7 +243,8 @@ async def remove_tag_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
         
     if not context.args:
-        await update.message.reply_text("نحوه استفاده: /remove_tag <هشتگ>")
+        context.user_data['admin_action'] = 'remove_tag'
+        await update.message.reply_text("🗑 لطفاً هشتگی که می‌خواهید حذف کنید را بفرستید:\n\nبرای لغو /cancel را ارسال کنید.")
         return
         
     tag = context.args[0]
@@ -257,7 +262,8 @@ async def remove_admin_command(update: Update, context: ContextTypes.DEFAULT_TYP
         return
         
     if not context.args:
-        await update.message.reply_text("نحوه استفاده: /remove_admin <آیدی_عددی>")
+        context.user_data['admin_action'] = 'remove_admin'
+        await update.message.reply_text("👤 لطفاً آیدی عددی ادمینی که می‌خواهید حذف کنید را بفرستید:\n\nبرای لغو /cancel را ارسال کنید.")
         return
     
     try:
@@ -584,6 +590,87 @@ async def handle_inline_button(update: Update, context: ContextTypes.DEFAULT_TYP
             pass
 
 async def handle_text_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    if not text:
+        return
+
+    admin_action = context.user_data.get('admin_action')
+    if admin_action:
+        if admin_action == 'add_tag':
+            tag = text
+            if not tag.startswith('#'):
+                tag = '#' + tag
+            context.user_data['pending_add_tag'] = tag
+            del context.user_data['admin_action']
+            
+            cats = db.get_categories()
+            if not cats:
+                await update.message.reply_text("❌ هیچ دسته‌بندی یافت نشد! ابتدا با /add_category یک دسته بسازید.")
+                return
+                
+            keyboard = []
+            for cat_id, cat_name in cats:
+                keyboard.append([InlineKeyboardButton(cat_name, callback_data=f"addtag_cat|{cat_id}")])
+            
+            await update.message.reply_text(f"👇 دسته‌بندی مربوط به هشتگ {tag} را انتخاب کنید:", reply_markup=InlineKeyboardMarkup(keyboard))
+            return
+            
+        elif admin_action == 'remove_tag':
+            tag = text
+            if not tag.startswith('#'):
+                tag = '#' + tag
+            if db.remove_hashtag(tag):
+                await update.message.reply_text(f"✅ هشتگ {tag} حذف شد.")
+            else:
+                await update.message.reply_text(f"⚠️ هشتگ {tag} پیدا نشد.")
+            del context.user_data['admin_action']
+            return
+            
+        elif admin_action == 'add_category':
+            name = text
+            if db.add_category(name):
+                await update.message.reply_text(f"✅ دسته‌بندی «{name}» اضافه شد.")
+            else:
+                await update.message.reply_text(f"⚠️ این دسته‌بندی از قبل وجود دارد.")
+            del context.user_data['admin_action']
+            return
+            
+        elif admin_action == 'remove_category':
+            try:
+                cat_id = int(text)
+                if db.remove_category(cat_id):
+                    await update.message.reply_text("✅ دسته‌بندی حذف شد.")
+                else:
+                    await update.message.reply_text("❌ دسته‌بندی پیدا نشد.")
+            except ValueError:
+                await update.message.reply_text("❌ آیدی باید عدد باشد.")
+            del context.user_data['admin_action']
+            return
+            
+        elif admin_action == 'add_admin':
+            try:
+                new_admin_id = int(text)
+                if db.add_admin(new_admin_id):
+                    await update.message.reply_text(f"✅ ادمین {new_admin_id} اضافه شد.")
+                else:
+                    await update.message.reply_text(f"⚠️ ادمین {new_admin_id} از قبل وجود دارد.")
+            except ValueError:
+                await update.message.reply_text("❌ آیدی باید عدد باشد.")
+            del context.user_data['admin_action']
+            return
+            
+        elif admin_action == 'remove_admin':
+            try:
+                del_admin_id = int(text)
+                if db.remove_admin(del_admin_id):
+                    await update.message.reply_text(f"✅ ادمین {del_admin_id} با موفقیت حذف شد.")
+                else:
+                    await update.message.reply_text(f"⚠️ ادمین {del_admin_id} پیدا نشد.")
+            except ValueError:
+                await update.message.reply_text("❌ آیدی باید عدد باشد.")
+            del context.user_data['admin_action']
+            return
+
     pending_media = context.user_data.get('pending_media')
     if not pending_media:
         return
@@ -676,6 +763,25 @@ async def handle_text_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ─── Routing ──────────────────────────────────────────────────────
 
+async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or not update.message.chat or update.message.chat.type != 'private':
+        return
+        
+    cancelled = False
+    for key in ['admin_action', 'pending_add_tag', 'pending_media']:
+        if key in context.user_data:
+            del context.user_data[key]
+            cancelled = True
+            
+    if cancelled:
+        user_id = update.message.from_user.id
+        if user_id == OWNER_ID or db.is_admin(user_id):
+            await update.message.reply_text("🚫 عملیات لغو شد.", reply_markup=get_admin_shortcuts())
+        else:
+            await update.message.reply_text("🚫 عملیات لغو شد.")
+    else:
+        await community.handle_cancel_command(update, context)
+
 async def router_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Route media messages to admin or community flows explicitly, bypassing PTB filter caching issues."""
     # بررسی امن برای اینکه مطمئن شویم پیام وجود دارد و حتماً در چت خصوصی است
@@ -744,7 +850,7 @@ def main():
     # ── Public Commands (available to everyone) ──
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CommandHandler("cancel", community.handle_cancel_command))
+    app.add_handler(CommandHandler("cancel", cancel_command))
     
     # ── Media Router Handlers ──
     app.add_handler(MessageHandler(filters.ANIMATION | filters.VIDEO, router_media))
