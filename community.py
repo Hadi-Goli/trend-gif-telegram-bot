@@ -69,10 +69,21 @@ def _submit_again_keyboard() -> InlineKeyboardMarkup:
 def build_review_caption(submission: dict) -> str:
     """Build the caption text for the review-group message."""
     tags_str = " ".join(submission['hashtags'])
+    
+    user_id = submission.get('user_id')
+    username = submission.get('username')
+    display_name = submission.get('user_display_name', 'کاربر')
+    
+    user_link = f"<a href='tg://user?id={user_id}'>{display_name}</a>"
+    if username:
+        user_info = f"{user_link} ({username}) [<code>{user_id}</code>]"
+    else:
+        user_info = f"{user_link} [<code>{user_id}</code>]"
+
     return (
         f"📤 <b>گیف ارسالی جدید</b>\n\n"
         f"🏷 هشتگ‌ها: {tags_str}\n"
-        f"👤 ارسالی از: {submission['user_display_name']}\n"
+        f"👤 ارسالی از: {user_info}\n"
         f"🆔 شناسه: <code>#{submission['id']}</code>"
     )
 

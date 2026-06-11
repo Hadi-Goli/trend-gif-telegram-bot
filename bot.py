@@ -322,9 +322,11 @@ async def report_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id != OWNER_ID and not db.is_admin(user_id):
         return
         
+    report_lines = ["📊 <b>گزارش فعالیت ربات:</b>\n"]
+
+    # 1. Admin logs (current month)
     results = db.get_report_data()
-    
-    report_lines = ["📊 <b>گزارش فعالیت خلاصه:</b>\n"]
+    report_lines.append("👥 <b>فعالیت ادمین‌ها (این ماه):</b>")
     if results:
         for admin_id, count in results:
             try:
@@ -336,11 +338,36 @@ async def report_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except Exception:
                 name = "ناشناس"
                 
-            report_lines.append(f"👤 {name} (<code>{admin_id}</code>): {count} پست")
+            report_lines.append(f"▪️ {name}: {count} پست")
     else:
-        report_lines.append("در این ماه پستی از ادمین‌ها ارسال نشده است.")
+        report_lines.append("▪️ هنوز پستی ارسال نشده.")
+
+    # 2. Top hashtags
+    trending_tags = db.get_hashtag_trends(days=30)
+    report_lines.append("\n🔥 <b>هشتگ‌های پرکاربرد (۳۰ روز اخیر):</b>")
+    if trending_tags:
+        for tag, count in trending_tags[:5]:
+            report_lines.append(f"▪️ {html.escape(tag)}: {count} بار")
+    else:
+        report_lines.append("▪️ دیتایی موجود نیست.")
+
+    # 3. Top users
+    user_stats = db.get_user_stats()
+    report_lines.append("\n🌟 <b>کاربران برتر کامیونیتی:</b>")
+    if user_stats:
+        for row in user_stats[:3]:
+            # row: user_id, username, display_name, total_submissions, approved, rejected, pending
+            u_id, u_name, u_display, t_sub, approved, rej, pend = row
+            name_display = u_display or u_name or f"کاربر {u_id}"
+            report_lines.append(f"▪️ {html.escape(name_display)}: {t_sub} ارسال ({approved} تأیید شده)")
+    else:
+        report_lines.append("▪️ دیتایی موجود نیست.")
+
+    # 4. Pending submissions count
+    pending_count = db.count_pending_submissions()
+    report_lines.append(f"\n📦 <b>گیف‌های در انتظار بررسی:</b> {pending_count} عدد")
         
-    report_lines.append("\n💡 <b>برای دریافت آمار پیشرفته (ترند هشتگ‌ها، عملکرد بررسی‌ها، کاربران فعال و...) از دستور /export استفاده کنید.</b>")
+    report_lines.append("\n💡 <b>برای دریافت فایل کامل تمام آمارها از دستور /export استفاده کنید.</b>")
         
     await update.message.reply_text("\n".join(report_lines), parse_mode='HTML')
 

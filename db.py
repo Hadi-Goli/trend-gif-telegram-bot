@@ -109,13 +109,15 @@ def init_db():
     if 'hashtags' not in logs_columns:
         cursor.execute('ALTER TABLE logs ADD COLUMN hashtags TEXT')
 
-    # Migration: Add username and reviewed_at to submissions
+    # Migration: Add username, reviewed_at, and submitted_at to submissions
     cursor.execute("PRAGMA table_info(submissions)")
     sub_columns = [row[1] for row in cursor.fetchall()]
     if 'username' not in sub_columns:
         cursor.execute('ALTER TABLE submissions ADD COLUMN username TEXT')
     if 'reviewed_at' not in sub_columns:
         cursor.execute('ALTER TABLE submissions ADD COLUMN reviewed_at DATETIME')
+    if 'submitted_at' not in sub_columns:
+        cursor.execute('ALTER TABLE submissions ADD COLUMN submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP')
         
     conn.commit()
     conn.close()
