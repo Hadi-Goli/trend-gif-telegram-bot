@@ -59,7 +59,7 @@ owner_filter = OwnerFilter()
 
 def get_admin_shortcuts():
     return ReplyKeyboardMarkup(
-        [["/pending", "/report"], ["/list_tags", "/help"]], 
+        [["/pending", "/report"], ["/export", "/list_tags", "/help"]], 
         resize_keyboard=True
     )
 
@@ -107,7 +107,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         help_text += "👥 <b>راهنمای استفاده (Admins):</b>\n"
         help_text += "🔹 /list_tags - مشاهده لیست هشتگ‌های فعلی\n"
         help_text += "🔹 /list_admins - مشاهده لیست ادمین‌ها\n"
-        help_text += "🔹 /report - دریافت گزارش فعالیت\n"
+        help_text += "🔹 /report - دریافت گزارش فعالیت مختصر\n"
+        help_text += "🔹 /export - 📥 دریافت کامل تمام آمارها در فایل ZIP (فایل‌های CSV)\n"
         help_text += "🔹 /pending - تعداد گیف‌های در انتظار بررسی\n"
         help_text += "\n🎥 <b>نحوه ارسال پست:</b>\n"
         help_text += "۱. یک فایل <b>ویدیو</b> یا <b>گیف (Animation)</b> برای ربات ارسال کنید.\n"
@@ -322,24 +323,49 @@ async def report_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
         
     results = db.get_report_data()
-    if not results:
-        await update.message.reply_text("در این ماه پستی ارسال نشده است.")
-        return
+    
+    report_lines = ["📊 <b>گزارش فعالیت خلاصه:</b>\n"]
+    if results:
+        for admin_id, count in results:
+            try:
+                chat = await context.bot.get_chat(admin_id)
+                name = chat.first_name or "بدون نام"
+                if chat.username:
+                    name += f" (@{chat.username})"
+                name = html.escape(name)
+            except Exception:
+                name = "ناشناس"
+                
+            report_lines.append(f"👤 {name} (<code>{admin_id}</code>): {count} پست")
+    else:
+        report_lines.append("در این ماه پستی از ادمین‌ها ارسال نشده است.")
         
-    report_lines = ["📊 <b>گزارش فعالیت در این ماه:</b>\n"]
-    for admin_id, count in results:
-        try:
-            chat = await context.bot.get_chat(admin_id)
-            name = chat.first_name or "بدون نام"
-            if chat.username:
-                name += f" (@{chat.username})"
-            name = html.escape(name)
-        except Exception:
-            name = "ناشناس"
-            
-        report_lines.append(f"👤 {name} (<code>{admin_id}</code>): {count} پست")
+    report_lines.append("\n💡 <b>برای دریافت آمار پیشرفته (ترند هشتگ‌ها، عملکرد بررسی‌ها، کاربران فعال و...) از دستور /export استفاده کنید.</b>")
         
     await update.message.reply_text("\n".join(report_lines), parse_mode='HTML')
+
+async def export_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id if update.message.from_user else None
+    if user_id != OWNER_ID and not db.is_admin(user_id):
+        return
+        
+    await update.message.reply_text("⏳ در حال استخراج و ساخت فایل‌های گزارش...")
+    try:
+        zip_path = "reports.zip"
+        db.export_csv_reports(zip_path)
+        with open(zip_path, 'rb') as f:
+            await context.bot.send_document(
+                chat_id=update.message.chat_id,
+                document=f,
+                caption="📊 <b>گزارش آماری ربات Trend Gif</b>\n\nاین فایل ZIP شامل آمارهای کاربران، ترند هشتگ‌ها، عملکرد ادمین‌ها و ترافیک ربات به فرمت CSV است.",
+                parse_mode='HTML'
+            )
+        if os.path.exists(zip_path):
+            os.remove(zip_path)
+    except Exception as e:
+        logger.error(f"Error exporting reports: {e}")
+        await update.message.reply_text(f"❌ خطایی در گرفتن گزارش رخ داد: {e}")
+
 
 
 # ─── Admin Media Processing ──────────────────────────────────────
@@ -377,7 +403,7 @@ async def process_video_task(file_id, hashtag, context, update_text_func, user_i
                     )
             
             # Log successful post
-            db.log_post(user_id)
+            db.log_post(user_id, hashtag)
             await update_text_func("✅ گیف در کانال منتشر شد!")
         else:
             await update_text_func("❌ خطا در واترمارک ویدیو.")
@@ -845,6 +871,7 @@ def main():
     app.add_handler(CommandHandler("list_categories", list_categories_command, filters=admin_filter))
     app.add_handler(CommandHandler("list_admins", list_admins_command, filters=admin_filter))
     app.add_handler(CommandHandler("report", report_command, filters=admin_filter))
+    app.add_handler(CommandHandler("export", export_command, filters=admin_filter))
     app.add_handler(CommandHandler("pending", review.pending_command, filters=admin_filter))
     
     # ── Public Commands (available to everyone) ──

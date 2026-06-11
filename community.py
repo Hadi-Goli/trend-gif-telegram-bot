@@ -306,12 +306,16 @@ async def _finalize_submission(query, context):
     """Create DB record + send to review group (from callback query)."""
     sub_data = context.user_data.get('sub_data', {})
     user_id = query.from_user.id
+    username = query.from_user.username
+    if username:
+        username = f"@{username}"
 
     sub_id = db.create_submission(
         user_id=user_id,
         display_name=sub_data['display_name'],
         file_id=sub_data['file_id'],
         hashtags=list(sub_data['tags']),
+        username=username
     )
     db.log_rate_limit(user_id)
 
@@ -347,12 +351,16 @@ async def _finalize_submission_from_message(update: Update, context):
     """Create DB record + send to review group (from text message)."""
     sub_data = context.user_data.get('sub_data', {})
     user_id = update.message.from_user.id
+    username = update.message.from_user.username
+    if username:
+        username = f"@{username}"
 
     sub_id = db.create_submission(
         user_id=user_id,
         display_name=sub_data['display_name'],
         file_id=sub_data['file_id'],
         hashtags=list(sub_data['tags']),
+        username=username
     )
     db.log_rate_limit(user_id)
 

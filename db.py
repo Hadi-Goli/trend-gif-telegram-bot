@@ -1,6 +1,9 @@
 import sqlite3
 import json
 import datetime
+import csv
+import zipfile
+import os
 
 DB_NAME = "bot.db"
 
@@ -29,6 +32,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             admin_id INTEGER,
+            hashtags TEXT,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     ''')
@@ -38,11 +42,13 @@ def init_db():
         CREATE TABLE IF NOT EXISTS submissions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
+            username TEXT,
             user_display_name TEXT,
             file_id TEXT,
             hashtags TEXT,
             status TEXT DEFAULT 'pending',
             claimed_by INTEGER,
+            reviewed_at DATETIME,
             submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     ''')
@@ -97,6 +103,20 @@ def init_db():
                 cursor.execute('UPDATE hashtags SET category_id = ? WHERE tag_name = ?', (cat_id, tag))
             order += 10
             
+    # Migration: Add hashtags to logs
+    cursor.execute("PRAGMA table_info(logs)")
+    logs_columns = [row[1] for row in cursor.fetchall()]
+    if 'hashtags' not in logs_columns:
+        cursor.execute('ALTER TABLE logs ADD COLUMN hashtags TEXT')
+
+    # Migration: Add username and reviewed_at to submissions
+    cursor.execute("PRAGMA table_info(submissions)")
+    sub_columns = [row[1] for row in cursor.fetchall()]
+    if 'username' not in sub_columns:
+        cursor.execute('ALTER TABLE submissions ADD COLUMN username TEXT')
+    if 'reviewed_at' not in sub_columns:
+        cursor.execute('ALTER TABLE submissions ADD COLUMN reviewed_at DATETIME')
+        
     conn.commit()
     conn.close()
 
@@ -255,10 +275,10 @@ def valid_hashtag(tag_name: str) -> bool:
 
 # ─── Logging helpers ─────────────────────────────────────────────
 
-def log_post(admin_id: int):
+def log_post(admin_id: int, hashtags: str = None):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    cursor.execute('INSERT INTO logs (admin_id) VALUES (?)', (admin_id,))
+    cursor.execute('INSERT INTO logs (admin_id, hashtags) VALUES (?, ?)', (admin_id, hashtags))
     conn.commit()
     conn.close()
 
@@ -283,13 +303,13 @@ def get_report_data() -> list:
 
 # ─── Submission helpers ──────────────────────────────────────────
 
-def create_submission(user_id: int, display_name: str, file_id: str, hashtags: list) -> int:
+def create_submission(user_id: int, display_name: str, file_id: str, hashtags: list, username: str = None) -> int:
     """Create a new community submission. Returns the submission ID."""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     cursor.execute(
-        'INSERT INTO submissions (user_id, user_display_name, file_id, hashtags) VALUES (?, ?, ?, ?)',
-        (user_id, display_name, file_id, json.dumps(hashtags, ensure_ascii=False))
+        'INSERT INTO submissions (user_id, username, user_display_name, file_id, hashtags) VALUES (?, ?, ?, ?, ?)',
+        (user_id, username, display_name, file_id, json.dumps(hashtags, ensure_ascii=False))
     )
     conn.commit()
     sub_id = cursor.lastrowid
@@ -443,3 +463,176 @@ def check_rate_limit(user_id: int) -> tuple[bool, str]:
     if recent >= 3:
         return (False, "⏳ شما اخیراً چند گیف ارسال کرده‌اید.\nلطفاً ۱۰ دقیقه صبر کنید.")
     return (True, "")
+
+# ─── Advanced Reporting & Analytics ────────────────────────────────
+
+def get_user_stats() -> list:
+    """Returns aggregated stats grouped by user_id and username."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT 
+            user_id, 
+            MAX(username) as username, 
+            MAX(user_display_name) as display_name,
+            COUNT(*) as total_submissions,
+            SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved_count,
+            SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected_count,
+            SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_count
+        FROM submissions 
+        GROUP BY user_id
+        ORDER BY approved_count DESC, total_submissions DESC
+    ''')
+    results = cursor.fetchall()
+    conn.close()
+    return results
+
+def get_hashtag_trends(days: int = 30) -> list:
+    """Returns the most used tags from approved submissions and admin logs."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    
+    since = (datetime.datetime.now() - datetime.timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+    
+    # Get approved submissions tags
+    cursor.execute('SELECT hashtags FROM submissions WHERE status = ? AND submitted_at >= ?', ('approved', since))
+    sub_tags_raw = cursor.fetchall()
+    
+    # Get admin logs tags
+    cursor.execute('SELECT hashtags FROM logs WHERE timestamp >= ?', (since,))
+    log_tags_raw = cursor.fetchall()
+    conn.close()
+    
+    tag_counts = {}
+    
+    for row in sub_tags_raw:
+        if row[0]:
+            try:
+                tags = json.loads(row[0])
+                for tag in tags:
+                    tag_counts[tag] = tag_counts.get(tag, 0) + 1
+            except:
+                pass
+                
+    for row in log_tags_raw:
+        if row[0]: # Admins store space-separated string or just a string of tags
+            tags = [t for t in row[0].split() if t.startswith('#')]
+            for tag in tags:
+                tag_counts[tag] = tag_counts.get(tag, 0) + 1
+                
+    sorted_tags = sorted(tag_counts.items(), key=lambda x: x[1], reverse=True)
+    return sorted_tags
+
+def get_admin_review_stats() -> list:
+    """Returns admin performance for reviewing community submissions."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT 
+            claimed_by,
+            COUNT(*) as total_reviewed,
+            SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved_count,
+            SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected_count
+        FROM submissions
+        WHERE status IN ('approved', 'rejected') AND claimed_by IS NOT NULL
+        GROUP BY claimed_by
+        ORDER BY total_reviewed DESC
+    ''')
+    results = cursor.fetchall()
+    conn.close()
+    return results
+
+def get_traffic_stats() -> list:
+    """Returns aggregated traffic stats (submissions and admin posts) per day."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    
+    # Submissions by day
+    cursor.execute('''
+        SELECT date(submitted_at) as day, COUNT(*) 
+        FROM submissions 
+        GROUP BY day ORDER BY day DESC LIMIT 30
+    ''')
+    sub_traffic = cursor.fetchall()
+    
+    # Admin logs by day
+    cursor.execute('''
+        SELECT date(timestamp) as day, COUNT(*) 
+        FROM logs 
+        GROUP BY day ORDER BY day DESC LIMIT 30
+    ''')
+    admin_traffic = cursor.fetchall()
+    conn.close()
+    
+    traffic_dict = {}
+    for day, count in sub_traffic:
+        traffic_dict[day] = {"submissions": count, "admin_posts": 0}
+    for day, count in admin_traffic:
+        if day not in traffic_dict:
+            traffic_dict[day] = {"submissions": 0, "admin_posts": 0}
+        traffic_dict[day]["admin_posts"] = count
+        
+    sorted_traffic = sorted(traffic_dict.items(), reverse=True)
+    return sorted_traffic
+
+def export_csv_reports(zip_filename: str):
+    """Exports all advanced stats to a ZIP file containing multiple CSVs."""
+    import csv, zipfile, os
+    
+    # 1. Users
+    users_data = get_user_stats()
+    with open('users_stats.csv', 'w', newline='', encoding='utf-8-sig') as f:
+        writer = csv.writer(f)
+        writer.writerow(["User ID", "Username", "Display Name", "Total Submissions", "Approved", "Rejected", "Pending"])
+        for row in users_data:
+            writer.writerow(row)
+            
+    # 2. Hashtags
+    hashtags_data = get_hashtag_trends(days=365)
+    with open('hashtag_trends.csv', 'w', newline='', encoding='utf-8-sig') as f:
+        writer = csv.writer(f)
+        writer.writerow(["Hashtag", "Usage Count"])
+        for row in hashtags_data:
+            writer.writerow(row)
+            
+    # 3. Admin Reviews
+    admin_reviews = get_admin_review_stats()
+    with open('admin_performance.csv', 'w', newline='', encoding='utf-8-sig') as f:
+        writer = csv.writer(f)
+        writer.writerow(["Admin ID", "Total Reviewed", "Approved", "Rejected"])
+        for row in admin_reviews:
+            writer.writerow(row)
+            
+    # 4. Traffic
+    traffic_data = get_traffic_stats()
+    with open('traffic_stats.csv', 'w', newline='', encoding='utf-8-sig') as f:
+        writer = csv.writer(f)
+        writer.writerow(["Date", "Community Submissions", "Admin Posts"])
+        for day, stats in traffic_data:
+            writer.writerow([day, stats["submissions"], stats["admin_posts"]])
+            
+    # 5. Raw Logs (Admins)
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute('SELECT id, admin_id, hashtags, timestamp FROM logs ORDER BY timestamp DESC')
+    raw_logs = cursor.fetchall()
+    conn.close()
+    
+    with open('raw_logs.csv', 'w', newline='', encoding='utf-8-sig') as f:
+        writer = csv.writer(f)
+        writer.writerow(["Log ID", "Admin ID", "Hashtags", "Timestamp"])
+        for row in raw_logs:
+            writer.writerow(row)
+            
+    # Zip them up
+    with zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        zipf.write('users_stats.csv')
+        zipf.write('hashtag_trends.csv')
+        zipf.write('admin_performance.csv')
+        zipf.write('traffic_stats.csv')
+        zipf.write('raw_logs.csv')
+        
+    # Cleanup CSVs
+    for f in ['users_stats.csv', 'hashtag_trends.csv', 'admin_performance.csv', 'traffic_stats.csv', 'raw_logs.csv']:
+        if os.path.exists(f):
+            os.remove(f)
