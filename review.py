@@ -123,6 +123,8 @@ async def handle_review_callback(update: Update, context: ContextTypes.DEFAULT_T
         await _edit_tags_save(query, context)
     elif data.startswith("rev_tags_back|"):
         await _edit_tags_discard(query, context)
+    elif data.startswith("rev_force_reject|"):
+        await _force_reject(query, context)
 
 
 # ─── Claim ────────────────────────────────────────────────────────
@@ -246,6 +248,57 @@ async def _approve(query, context):
             )
         except Exception:
             pass
+
+async def _force_reject(query, context):
+    """Force reject an orphaned submission from the /pending list."""
+    sub_id = int(query.data.split("|")[1])
+    submission = db.get_submission(sub_id)
+    
+    if not submission:
+        await query.answer("⚠️ ارسالی پیدا نشد.", show_alert=True)
+        return
+        
+    if submission['status'] not in ('pending', 'claimed'):
+        await query.answer("⚠️ این ارسالی دیگر در حالت انتظار نیست.", show_alert=True)
+        await _refresh_pending_list(query)
+        return
+        
+    db.reject_submission(sub_id)
+    await query.answer(f"❌ گیف #{sub_id} با موفقیت رد و حذف شد.")
+    
+    try:
+        await context.bot.send_message(
+            chat_id=submission['user_id'],
+            text="متأسفانه گیف ارسالی شما تأیید نشد. ❌\nممکن است محتوا مناسب نبوده باشد. می‌توانید گیف دیگری ارسال کنید.",
+        )
+    except Exception:
+        pass
+        
+    await _refresh_pending_list(query)
+
+async def _refresh_pending_list(query):
+    pending_list = db.get_pending_submissions()
+    count = len(pending_list)
+    if count == 0:
+        try:
+            await query.edit_message_text("📬 هیچ گیفی در انتظار بررسی نیست.")
+        except Exception:
+            pass
+        return
+        
+    text = f"📬 تعداد گیف‌های در انتظار بررسی: <b>{count}</b>\n\n"
+    text += "اگر پیام تأیید یک گیف در گروه پاک شده است، می‌توانید از لیست زیر آن را رد (لغو) کنید تا از حالت انتظار خارج شود:"
+    
+    keyboard = []
+    for sub in pending_list:
+        sub_id = sub['id']
+        display = sub.get('user_display_name', 'ناشناس')
+        keyboard.append([InlineKeyboardButton(f"❌ رد کردن #{sub_id} ({display})", callback_data=f"rev_force_reject|{sub_id}")])
+        
+    try:
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML')
+    except Exception:
+        pass
     finally:
         import os as _os
         for p in (input_path, output_path):
@@ -402,13 +455,23 @@ async def _edit_tags_discard(query, context):
 async def pending_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id if update.message.from_user else None
     
-    # We must import db, OWNER_ID from os.environ or something. 
-    # Actually, review.py doesn't have OWNER_ID.
-    # Let me check if OWNER_ID is in review.py. No, it's not.
-    # I can just use db.is_admin(user_id) or check OWNER_ID from os.environ.
     OWNER_ID = int(os.environ.get("OWNER_ID", 276868456))
     if user_id != OWNER_ID and not db.is_admin(user_id):
         return
         
-    count = db.count_pending_submissions()
-    await update.message.reply_text(f"📬 تعداد گیف‌های در انتظار بررسی: <b>{count}</b>", parse_mode='HTML')
+    pending_list = db.get_pending_submissions()
+    count = len(pending_list)
+    if count == 0:
+        await update.message.reply_text("📬 هیچ گیفی در انتظار بررسی نیست.")
+        return
+        
+    text = f"📬 تعداد گیف‌های در انتظار بررسی: <b>{count}</b>\n\n"
+    text += "اگر پیام تأیید یک گیف در گروه پاک شده است، می‌توانید از لیست زیر آن را رد (لغو) کنید تا از حالت انتظار خارج شود:"
+    
+    keyboard = []
+    for sub in pending_list:
+        sub_id = sub['id']
+        display = sub.get('user_display_name', 'ناشناس')
+        keyboard.append([InlineKeyboardButton(f"❌ رد کردن #{sub_id} ({display})", callback_data=f"rev_force_reject|{sub_id}")])
+        
+    await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML')

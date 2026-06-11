@@ -399,6 +399,22 @@ def count_pending_submissions() -> int:
     conn.close()
     return count
 
+def get_pending_submissions() -> list:
+    """Get all submissions with 'pending' or 'claimed' status."""
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM submissions WHERE status IN ('pending', 'claimed')")
+    rows = cursor.fetchall()
+    conn.close()
+    
+    results = []
+    for row in rows:
+        r = dict(row)
+        r['hashtags'] = json.loads(r['hashtags'])
+        results.append(r)
+    return results
+
 # ─── Rate-limit helpers ──────────────────────────────────────────
 
 def log_rate_limit(user_id: int):

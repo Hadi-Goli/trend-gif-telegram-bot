@@ -26,8 +26,12 @@ def reset_stats():
     cursor.execute('SELECT id, admin_id, timestamp FROM logs ORDER BY timestamp ASC')
     all_logs = cursor.fetchall()
     
-    if not all_logs:
-        print("هیچ آماری برای ریست کردن وجود ندارد (جدول logs خالی است).")
+    # گرفتن تمامی ارسال‌های کامیونیتی
+    cursor.execute('SELECT * FROM submissions ORDER BY submitted_at ASC')
+    all_submissions = cursor.fetchall()
+    
+    if not all_logs and not all_submissions:
+        print("هیچ آماری برای ریست کردن وجود ندارد.")
         conn.close()
         return
 
@@ -44,23 +48,31 @@ def reset_stats():
         for admin_id, count in stats:
             f.write(f"ادمین {admin_id}: {count} گیف ارسالی\n")
             
-        f.write("\nلیست کامل لاگ‌ها:\n")
+        f.write("\nلیست کامل لاگ‌های ادمین:\n")
         for log_id, admin_id, ts in all_logs:
             f.write(f"ID: {log_id} | ادمین: {admin_id} | زمان: {ts}\n")
             
+        f.write("\nلیست کامل ارسال‌های کامیونیتی:\n")
+        for sub in all_submissions:
+            f.write(f"{sub}\n")
+            
     print(f"آمار با موفقیت در فایل زیر بک‌آپ گرفته شد:\n{backup_filename}")
     
-    # پاک کردن لاگ‌ها
+    # پاک کردن لاگ‌ها و سابمیشن‌ها
     cursor.execute('DELETE FROM logs')
+    cursor.execute('DELETE FROM submissions')
+    cursor.execute('DELETE FROM rate_limits')
     try:
         cursor.execute("DELETE FROM sqlite_sequence WHERE name='logs'")
+        cursor.execute("DELETE FROM sqlite_sequence WHERE name='submissions'")
+        cursor.execute("DELETE FROM sqlite_sequence WHERE name='rate_limits'")
     except sqlite3.OperationalError:
         pass
     
     conn.commit()
     conn.close()
     
-    print("تمامی آمار گیف‌های ارسالی ادمین‌ها صفر شد.")
+    print("تمامی آمار ربات (ادمین‌ها و کامیونیتی) صفر شد.")
 
 if __name__ == "__main__":
     reset_stats()
