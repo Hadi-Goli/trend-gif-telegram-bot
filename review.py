@@ -183,7 +183,12 @@ async def _approve(query, context):
     file_id = submission['file_id']
     tags_str = " ".join(submission['hashtags'])
     credit = submission['user_display_name']
-    caption = f"{tags_str}\n\n• {credit}"
+    
+    footer = "───────────\n📫 @trend_gif"
+    if credit:
+        caption = f"{tags_str}\n\n• {credit}\n{footer}"
+    else:
+        caption = f"{tags_str}\n\n{footer}"
 
     input_path = f"input_sub_{sub_id}.mp4"
     output_path = f"output_sub_{sub_id}.mp4"

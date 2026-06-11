@@ -414,19 +414,22 @@ async def process_video_task(file_id, hashtag, context, update_text_func, user_i
             # Send to channel as ANIMATION (GIF)
             admin_token = os.environ.get(f"ADMIN_BOT_{user_id}")
             
+            footer = "───────────\n📫 @trend_gif"
+            final_caption = f"{hashtag}\n\n{footer}"
+            
             with open(output_path, 'rb') as f:
                 if admin_token:
                     async with Bot(token=admin_token) as proxy_bot:
                         await proxy_bot.send_animation(
                             chat_id=CHANNEL_USERNAME,
                             animation=f,
-                            caption=hashtag
+                            caption=final_caption
                         )
                 else:
                     await context.bot.send_animation(
                         chat_id=CHANNEL_USERNAME,
                         animation=f,
-                        caption=hashtag
+                        caption=final_caption
                     )
             
             # Log successful post
