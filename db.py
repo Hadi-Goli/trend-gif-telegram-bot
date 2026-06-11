@@ -117,7 +117,7 @@ def init_db():
     if 'reviewed_at' not in sub_columns:
         cursor.execute('ALTER TABLE submissions ADD COLUMN reviewed_at DATETIME')
     if 'submitted_at' not in sub_columns:
-        cursor.execute('ALTER TABLE submissions ADD COLUMN submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP')
+        cursor.execute('ALTER TABLE submissions ADD COLUMN submitted_at DATETIME')
         
     conn.commit()
     conn.close()
@@ -309,9 +309,10 @@ def create_submission(user_id: int, display_name: str, file_id: str, hashtags: l
     """Create a new community submission. Returns the submission ID."""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     cursor.execute(
-        'INSERT INTO submissions (user_id, username, user_display_name, file_id, hashtags) VALUES (?, ?, ?, ?, ?)',
-        (user_id, username, display_name, file_id, json.dumps(hashtags, ensure_ascii=False))
+        'INSERT INTO submissions (user_id, username, user_display_name, file_id, hashtags, submitted_at) VALUES (?, ?, ?, ?, ?, ?)',
+        (user_id, username, display_name, file_id, json.dumps(hashtags, ensure_ascii=False), now_str)
     )
     conn.commit()
     sub_id = cursor.lastrowid
@@ -404,7 +405,8 @@ def log_rate_limit(user_id: int):
     """Record a submission timestamp for rate-limiting."""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    cursor.execute('INSERT INTO rate_limits (user_id) VALUES (?)', (user_id,))
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cursor.execute('INSERT INTO rate_limits (user_id, submitted_at) VALUES (?, ?)', (user_id, now_str))
     conn.commit()
     conn.close()
 
