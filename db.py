@@ -49,7 +49,8 @@ def init_db():
             status TEXT DEFAULT 'pending',
             claimed_by INTEGER,
             reviewed_at DATETIME,
-            submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            submitted_at DATETIME,
+            user_message_id INTEGER
         )
     ''')
     
@@ -118,6 +119,8 @@ def init_db():
         cursor.execute('ALTER TABLE submissions ADD COLUMN reviewed_at DATETIME')
     if 'submitted_at' not in sub_columns:
         cursor.execute('ALTER TABLE submissions ADD COLUMN submitted_at DATETIME')
+    if 'user_message_id' not in sub_columns:
+        cursor.execute('ALTER TABLE submissions ADD COLUMN user_message_id INTEGER')
         
     conn.commit()
     conn.close()
@@ -305,14 +308,14 @@ def get_report_data() -> list:
 
 # ─── Submission helpers ──────────────────────────────────────────
 
-def create_submission(user_id: int, display_name: str, file_id: str, hashtags: list, username: str = None) -> int:
+def create_submission(user_id: int, display_name: str, file_id: str, hashtags: list, username: str = None, user_message_id: int = None) -> int:
     """Create a new community submission. Returns the submission ID."""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     cursor.execute(
-        'INSERT INTO submissions (user_id, username, user_display_name, file_id, hashtags, submitted_at) VALUES (?, ?, ?, ?, ?, ?)',
-        (user_id, username, display_name, file_id, json.dumps(hashtags, ensure_ascii=False), now_str)
+        'INSERT INTO submissions (user_id, username, user_display_name, file_id, hashtags, submitted_at, user_message_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        (user_id, username, display_name, file_id, json.dumps(hashtags, ensure_ascii=False), now_str, user_message_id)
     )
     conn.commit()
     sub_id = cursor.lastrowid

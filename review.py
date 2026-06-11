@@ -218,6 +218,11 @@ async def _approve(query, context):
                 # Build channel post link
                 channel_handle = CHANNEL_USERNAME.lstrip('@')
                 post_link = f"https://t.me/{channel_handle}/{channel_msg.message_id}"
+                
+                reply_kwargs = {}
+                if submission.get('user_message_id'):
+                    reply_kwargs['reply_to_message_id'] = submission['user_message_id']
+                    
                 await context.bot.send_message(
                     chat_id=submission['user_id'],
                     text=(
@@ -225,6 +230,7 @@ async def _approve(query, context):
                         f"🔗 <a href=\"{post_link}\">مشاهده پست</a>"
                     ),
                     parse_mode='HTML',
+                    **reply_kwargs
                 )
             except Exception as e:
                 logger.warning(f"Could not notify user {submission['user_id']}: {e}")
@@ -267,9 +273,14 @@ async def _force_reject(query, context):
     await query.answer(f"❌ گیف #{sub_id} با موفقیت رد و حذف شد.")
     
     try:
+        reply_kwargs = {}
+        if submission.get('user_message_id'):
+            reply_kwargs['reply_to_message_id'] = submission['user_message_id']
+            
         await context.bot.send_message(
             chat_id=submission['user_id'],
             text="متأسفانه گیف ارسالی شما تأیید نشد. ❌\nممکن است محتوا مناسب نبوده باشد. می‌توانید گیف دیگری ارسال کنید.",
+            **reply_kwargs
         )
     except Exception:
         pass
@@ -332,9 +343,14 @@ async def _reject(query, context):
 
     # Notify the submitter
     try:
+        reply_kwargs = {}
+        if submission.get('user_message_id'):
+            reply_kwargs['reply_to_message_id'] = submission['user_message_id']
+            
         await context.bot.send_message(
             chat_id=submission['user_id'],
             text="متأسفانه گیف ارسالی شما تأیید نشد. ❌\nممکن است محتوا مناسب نبوده باشد. می‌توانید گیف دیگری ارسال کنید.",
+            **reply_kwargs
         )
     except Exception as e:
         logger.warning(f"Could not notify user {submission['user_id']}: {e}")

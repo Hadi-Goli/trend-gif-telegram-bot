@@ -179,7 +179,11 @@ async def handle_user_gif(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # Save and move to tag selection
-    context.user_data['sub_data'] = {'file_id': file_id, 'tags': set()}
+    context.user_data['sub_data'] = {
+        'file_id': file_id, 
+        'tags': set(),
+        'user_message_id': msg.message_id
+    }
     context.user_data['sub_state'] = 'selecting_tags'
 
     grouped_tags = db.get_all_hashtags_grouped()
@@ -326,7 +330,8 @@ async def _finalize_submission(query, context):
         display_name=sub_data['display_name'],
         file_id=sub_data['file_id'],
         hashtags=list(sub_data['tags']),
-        username=username
+        username=username,
+        user_message_id=sub_data.get('user_message_id')
     )
     db.log_rate_limit(user_id)
 
@@ -371,7 +376,8 @@ async def _finalize_submission_from_message(update: Update, context):
         display_name=sub_data['display_name'],
         file_id=sub_data['file_id'],
         hashtags=list(sub_data['tags']),
-        username=username
+        username=username,
+        user_message_id=sub_data.get('user_message_id')
     )
     db.log_rate_limit(user_id)
 
