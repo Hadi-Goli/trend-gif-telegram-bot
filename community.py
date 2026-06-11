@@ -271,6 +271,9 @@ async def handle_user_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /cancel for community users to exit submission flow."""
+    if not update.message or not update.message.chat or update.message.chat.type != 'private':
+        return
+
     state = context.user_data.get('sub_state')
     if state:
         context.user_data['sub_state'] = None

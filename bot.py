@@ -64,6 +64,9 @@ def get_admin_shortcuts():
     )
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or not update.message.chat or update.message.chat.type != 'private':
+        return
+
     user_id = update.message.from_user.id
     if user_id == OWNER_ID or db.is_admin(user_id):
         await update.message.reply_text("سلام ادمین! ربات با موفقیت در حال اجراست. 🚀", reply_markup=get_admin_shortcuts())
@@ -82,6 +85,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or not update.message.chat or update.message.chat.type != 'private':
+        return
+
     user_id = update.message.from_user.id if update.message.from_user else None
     
     is_owner = (user_id == OWNER_ID)
