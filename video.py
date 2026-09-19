@@ -16,10 +16,16 @@ async def watermark_video(input_path: str, output_path: str, channel_username: s
         # Fallback to simple copy if watermark is missing, or return False
         return False
 
-    # FFmpeg command to overlay watermark at bottom right
-    # [1:v][0:v]scale2ref=w='iw*0.05':h='ow/mdar'[wm][vid] scales the watermark to 5% of the video width
-    # [vid][wm]overlay=W-w-10:H-h-10 overlays it 10px from the bottom right
-    filter_complex = "[1:v][0:v]scale2ref=w='iw*0.13':h='ow/mdar'[wm][vid];[vid][wm]overlay=W-w-10:H-h-10"
+    # 1. Upscale low-res videos to min width of 640px (bicubic) so watermark has high pixel density
+    # 2. Rotate watermark 90 degrees clockwise (transpose=clock) for vertical top-to-bottom reading
+    # 3. Scale watermark proportionally (35% of video height, bounded by 45% of width) with lanczos filter
+    # 4. Position watermark at middle right: W-w-10 horizontally, (H-h)/2 vertically
+    filter_complex = (
+        "[0:v]scale='ceil(if(lt(iw,640),640,iw)/2)*2':-2:flags=bicubic[scaled_vid];"
+        "[1:v]transpose=clock[wm_rot];"
+        "[wm_rot][scaled_vid]scale2ref=h='min(ih*0.35,iw*0.45)':w='oh*mdar':flags=lanczos[wm][vref];"
+        "[vref][wm]overlay=W-w-10:(H-h)/2"
+    )
     
     cmd = [
         'ffmpeg',
@@ -27,6 +33,8 @@ async def watermark_video(input_path: str, output_path: str, channel_username: s
         '-i', watermark_file,
         '-filter_complex', filter_complex,
         '-c:v', 'libx264',
+        '-crf', '26',
+        '-preset', 'fast',
         '-pix_fmt', 'yuv420p',
         '-an', # Remove audio
         '-y',  # Overwrite output
